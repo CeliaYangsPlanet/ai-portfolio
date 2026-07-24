@@ -69,7 +69,7 @@
 
 产品设计 · 数据分析 · AI应用开发
 
-
+[查看完整项目案例 →](projects/01-oncall-dashboard/README_CN.md)
 
 ---
 
