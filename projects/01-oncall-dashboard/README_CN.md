@@ -1,3 +1,4 @@
+[English](README.md) | [中文](README_CN.md)
 # 📊 值班号工单数据分析平台
 
 ## AI驱动的运营分析产品
