@@ -2,6 +2,7 @@
 
 ## AI-powered Operation Analytics Platform
 
+![Cover](images/dashboard-overview.png)
 
 ## Overview
 
