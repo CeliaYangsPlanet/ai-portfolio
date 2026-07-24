@@ -2,6 +2,7 @@
 
 ## AI驱动的运营分析产品
 
+![Cover](images/dashboard-overview.png)
 
 # 项目介绍
 
