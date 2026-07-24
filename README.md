@@ -1,3 +1,4 @@
+[English](README.md) | [中文](README_CN.md)
 # Hi, I'm Cuiyutong Yang 👋
 
 ## AI Product Manager | AI Builder | Product Operations
