@@ -1,0 +1,2458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+
+
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>机器人工单数据看板</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="data_tickets.js?t=1783435801"></script>
+<script src="data_qa.js?t=1783435801"></script>
+<script src="data_manual.js?t=1783435801"></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f0f2f5;min-height:100vh;color:#1a1a2e}
+.app{display:flex;min-height:100vh}
+
+/* ===== 侧边栏 ===== */
+.sidebar{width:220px;background:#fff;padding:24px 16px;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;box-shadow:1px 0 0 #e8eaed,4px 0 16px rgba(0,0,0,.04)}
+.sidebar-logo{display:flex;align-items:center;gap:10px;margin-bottom:32px;padding:0 8px}
+.sidebar-logo i{font-size:24px;color:#4f6ef7;background:linear-gradient(135deg,#4f6ef7,#7c5cfc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.sidebar-logo span{font-size:15px;font-weight:700;color:#1a1a2e}
+.sidebar-nav{flex:1;display:flex;flex-direction:column;gap:2px}
+.sidebar-nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;color:#5f6368;text-decoration:none;border-radius:8px;font-size:13px;font-weight:500;transition:all .15s;cursor:pointer}
+.sidebar-nav a:hover{background:#f1f3f4;color:#1a1a2e}
+.sidebar-nav a.active{background:#e8f0fe;color:#4f6ef7;font-weight:600}
+.sidebar-nav a i{width:18px;text-align:center;font-size:14px}
+.sidebar-nav .nav-divider{border-top:1px solid #e8eaed;margin:6px 8px}
+
+/* ===== 主区域 ===== */
+.main{flex:1;margin-left:220px;padding:20px 24px;overflow-y:auto;background:#f0f2f5}
+
+/* ===== 头部 ===== */
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.header h1{font-size:22px;color:#1a1a2e;font-weight:700;display:flex;align-items:center;gap:8px}
+.header h1 i{color:#4f6ef7}
+
+/* ===== 筛选器 ===== */
+.filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#fff;padding:8px 12px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.filters label{color:#5f6368;font-size:12px;font-weight:600;white-space:nowrap}
+.filters input[type=date]{background:#f8f9fa;border:1px solid #e8eaed;color:#1a1a2e;padding:6px 10px;border-radius:6px;font-size:12px;outline:none;transition:all .15s;width:130px}
+.filters input[type=date]:focus{border-color:#4f6ef7;box-shadow:0 0 0 3px rgba(79,110,247,.1)}
+.filters .btn{background:#f1f3f4;border:none;color:#5f6368;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s;white-space:nowrap}
+.filters .btn:hover{background:#e8eaed;color:#1a1a2e}
+.filters .btn-primary{background:#4f6ef7;color:#fff}
+.filters .btn-primary:hover{background:#3b5de7}
+.filters .btn-upload{background:#e6f4ea;border:1px dashed #34a853;color:#1e8e3e}
+.filters .btn-upload:hover{background:#ceead6}
+.filters .file-info{color:#5f6368;font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#fileInput{display:none}
+
+/* ===== 上传区域 ===== */
+.upload-area{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:280px;background:#fff;border:2px dashed #e8eaed;border-radius:16px;margin:40px 0;cursor:pointer;transition:all .2s}
+.upload-area:hover{background:#f8f9fa;border-color:#4f6ef7}
+.upload-area i{font-size:40px;color:#dadce0;margin-bottom:12px}
+.upload-area h3{color:#1a1a2e;font-size:16px;margin-bottom:6px;font-weight:600}
+.upload-area p{color:#9aa0a6;font-size:13px}
+.upload-area.hidden{display:none}
+
+/* ===== 指标卡 ===== */
+.metrics-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.metric-card{background:#fff;border-radius:12px;padding:18px 20px;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:all .2s;border:1px solid #f1f3f4}
+.metric-card::before{content:'';position:absolute;top:0;left:12px;right:12px;height:3px;border-radius:0 0 3px 3px;background:linear-gradient(90deg,#4f6ef7,#7c5cfc)}
+.metric-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.08);border-color:#e8eaed}
+.metric-card .label{font-size:12px;color:#9aa0a6;font-weight:500;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.metric-card .label i{color:#4f6ef7;font-size:13px}
+.metric-card .value{font-size:28px;font-weight:800;color:#1a1a2e;margin-bottom:2px;letter-spacing:-0.5px}
+.metric-card .change{font-size:12px;font-weight:600;display:flex;align-items:center;gap:3px}
+.metric-card .change.up{color:#1e8e3e}
+.metric-card .change.down{color:#ea4335}
+.metric-card .change.neutral{color:#9aa0a6}
+
+/* ===== 区域容器 ===== */
+.section{margin-bottom:20px}
+.section.hidden{display:none}
+.section-title{font-size:16px;color:#1a1a2e;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-title i{color:#4f6ef7}
+
+/* ===== 图表卡片 ===== */
+.chart-card{background:#fff;border-radius:12px;padding:18px;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #f1f3f4;transition:all .2s}
+.chart-card::before{content:'';position:absolute;top:0;left:12px;right:12px;height:3px;border-radius:0 0 3px 3px;background:linear-gradient(90deg,#4f6ef7,#7c5cfc)}
+.chart-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.chart-header h3{font-size:14px;color:#1a1a2e;font-weight:700}
+
+/* ===== 图表内筛选 ===== */
+.chart-filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.chart-filters select{background:#f8f9fa;border:1px solid #e8eaed;color:#1a1a2e;padding:5px 8px;border-radius:6px;font-size:11px;outline:none;max-width:140px}
+.chart-filters .btn-sm{background:#f1f3f4;border:none;color:#5f6368;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;transition:all .15s}
+.chart-filters .btn-sm:hover{background:#e8eaed}
+.chart-filters .btn-sm.active{background:#4f6ef7;color:#fff}
+.chart-wrap{position:relative;width:100%;height:340px}
+.chart-wrap canvas{width:100%!important}
+
+/* ===== 表格卡片 ===== */
+.table-card{background:#fff;border-radius:12px;padding:18px;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #f1f3f4}
+.table-card::before{content:'';position:absolute;top:0;left:12px;right:12px;height:3px;border-radius:0 0 3px 3px;background:linear-gradient(90deg,#4f6ef7,#7c5cfc)}
+.table-card h3{font-size:14px;color:#1a1a2e;font-weight:700;margin-bottom:10px}
+.table-wrap{overflow-x:auto;max-height:550px;overflow-y:auto;border-radius:8px}
+.table-wrap table{width:100%;border-collapse:collapse;font-size:12px}
+.table-wrap th{background:#f8f9fa;color:#5f6368;padding:8px 10px;text-align:center;font-weight:600;position:sticky;top:0;z-index:2;white-space:nowrap;border-bottom:2px solid #e8eaed;font-size:11px;text-transform:uppercase;letter-spacing:0.3px}
+.table-wrap td{padding:8px 10px;text-align:center;border-bottom:1px solid #f1f3f4;white-space:nowrap;color:#3c4043}
+.table-wrap tr:hover td{background:#f8f9fa}
+.table-wrap .rate-high{color:#1e8e3e;font-weight:700}
+.table-wrap .rate-mid{color:#f9ab00;font-weight:700}
+.table-wrap .rate-low{color:#ea4335;font-weight:700}
+.table-wrap .row-parent{cursor:pointer;background:#f8f9fa;font-weight:600;transition:background .15s}
+.table-wrap .row-parent:hover{background:#e8f0fe}
+.table-wrap .row-parent td{text-align:left;padding-left:14px;color:#1a1a2e}
+.table-wrap .row-parent .expand-icon{display:inline-block;width:16px;text-align:center;margin-right:4px;transition:transform .15s;font-size:10px;color:#5f6368}
+.table-wrap .row-parent.expanded .expand-icon{transform:rotate(90deg)}
+.table-wrap .row-child{display:none}
+.table-wrap .row-child.show{display:table-row}
+.table-wrap .row-child td{background:#fff;font-size:11px;color:#5f6368}
+.table-wrap .row-child td:first-child{padding-left:36px;text-align:left}
+
+/* ===== 布局网格 ===== */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:1400px){.three-col{grid-template-columns:1fr 1fr}}
+@media(max-width:1200px){.two-col,.three-col{grid-template-columns:1fr}.metrics-row{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:768px){.sidebar{display:none}.main{margin-left:0}.metrics-row{grid-template-columns:1fr}}
+
+/* ===== 周期切换 ===== */
+.period-toggle{display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid #e8eaed}
+.period-toggle .btn-sm{border-radius:0!important;border-right:1px solid #e8eaed}
+.period-toggle .btn-sm:last-child{border-right:none}
+
+/* ===== 多选组件 ===== */
+.multi-select{position:relative;min-width:150px;user-select:none}
+.multi-select-trigger{display:flex;align-items:center;gap:5px;background:#f8f9fa;border:1px solid #e8eaed;color:#3c4043;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;transition:all .15s;min-width:130px}
+.multi-select-trigger:hover{border-color:#4f6ef7}
+.multi-select-trigger .ms-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#3c4043}
+.multi-select-trigger .ms-count{background:#4f6ef7;color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;white-space:nowrap;display:none}
+.multi-select-trigger .ms-count.show{display:inline-block}
+.multi-select-trigger i{font-size:9px;transition:transform .15s;color:#9aa0a6}
+.multi-select.open .multi-select-trigger{border-color:#4f6ef7;box-shadow:0 0 0 3px rgba(79,110,247,.1)}
+.multi-select.open .multi-select-trigger i{transform:rotate(180deg)}
+.multi-select-dropdown{display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#fff;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;min-width:220px;max-height:320px;overflow:hidden;border:1px solid #e8eaed}
+.multi-select.open .multi-select-dropdown{display:block}
+.ms-search{padding:8px}
+.ms-search input{width:100%;padding:6px 8px;border:1px solid #e8eaed;border-radius:6px;font-size:11px;outline:none;color:#1a1a2e;background:#f8f9fa}
+.ms-search input:focus{border-color:#4f6ef7}
+.ms-actions{display:flex;gap:4px;padding:0 8px 6px}
+.ms-actions button{flex:1;padding:4px 6px;border:1px solid #e8eaed;border-radius:4px;background:#fff;font-size:10px;cursor:pointer;color:#5f6368;transition:all .15s}
+.ms-actions button:hover{background:#4f6ef7;color:#fff;border-color:#4f6ef7}
+.ms-options{max-height:220px;overflow-y:auto;padding:2px 0}
+.ms-options label{display:flex;align-items:center;gap:6px;padding:5px 10px;cursor:pointer;font-size:11px;color:#3c4043;transition:background .1s}
+.ms-options label:hover{background:#f1f3f4}
+.ms-options label input[type=checkbox]{accent-color:#4f6ef7}
+.ms-options label.hidden{display:none}
+.chart-filters .multi-select-trigger{background:#f8f9fa;border:1px solid #e8eaed;color:#3c4043;font-size:11px;min-width:120px;padding:5px 7px}
+.chart-filters .multi-select-trigger .ms-count{font-size:9px}
+.chart-filters .multi-select .ms-text{color:#3c4043}
+
+/* ===== Toast ===== */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+.toast.show{opacity:1}
+.toast.error{background:#ea4335}
+.toast.success{background:#1e8e3e}
+
+/* ===== 排除开关 ===== */
+.exclude-toggle-label{color:#5f6368;font-size:12px;font-weight:500;white-space:nowrap;display:flex!important;align-items:center;gap:4px;cursor:pointer}
+.exclude-toggle-label input[type=checkbox]{width:13px;height:13px;margin:0;accent-color:#4f6ef7}
+
+/* ===== 页面容器 ===== */
+.page-container{display:none}
+.page-container.active{display:block}
+.page-container{width:100%;min-height:100%}
+
+/* ===== 运营后台 ===== */
+.admin-tabs{display:flex;gap:6px}
+.admin-tabs .btn{background:#f1f3f4;color:#5f6368}
+.admin-tabs .btn.active{background:#4f6ef7;color:#fff}
+.admin-panel.hidden{display:none}
+.card-entry{cursor:pointer;transition:all .2s}
+.card-entry:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.08)}
+
+/* ===== 图表内多选调整 ===== */
+.chart-filters .multi-select-trigger .ms-count{font-size:9px}
+.chart-filters .multi-select .ms-text{color:#3c4043}
+
+/* ===== 飞书数据状态 ===== */
+#feishuDataStatus{border:1px solid #e8eaed}
+#feishuDataStatus .btn{background:#f1f3f4;color:#5f6368;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer}
+#feishuDataStatus .btn:hover{background:#e8eaed}
+
+/* ===== 知识运营分析入口卡片 ===== */
+#knowledge-entry .chart-card{cursor:pointer}
+#knowledge-entry .chart-card:hover{box-shadow:0 4px 16px rgba(79,110,247,.12);border-color:#4f6ef7}
+
+/* ===== 双周复盘嵌入页 ===== */
+.embedded-dashboard-frame{width:100%;height:calc(100vh - 40px);border:0;border-radius:14px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.manual-note{font-size:12px;color:#6b7280;margin-left:8px;font-weight:400}
+</style>
+
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="sidebar-logo"><i class="fas fa-robot"></i><span>机器人工单数据看板</span></div>
+  <nav class="sidebar-nav">
+    <a href="javascript:void(0)" data-page="dashboard" class="active" onclick="showPage('dashboard')"><i class="fas fa-chart-pie"></i>机器人工单总览</a>
+    <a href="javascript:void(0)" data-page="manual" onclick="showPage('manual')"><i class="fas fa-headset"></i>人工工单总览</a>
+    <div class="nav-divider"></div>
+    <a href="javascript:void(0)" data-page="biweekly" onclick="showPage('biweekly')"><i class="fas fa-calendar-week"></i>双周复盘看板</a>
+    <a href="javascript:void(0)" data-page="knowledge" onclick="showPage('knowledge')"><i class="fas fa-brain"></i>知识运营分析</a>
+    <a href="javascript:void(0)" data-page="admin" onclick="showPage('admin')"><i class="fas fa-gear"></i>运营后台</a>
+  </nav>
+</aside>
+<main class="main">
+  <div class="page-container active" id="page-dashboard">
+  <div class="header">
+    <h1><i class="fas fa-robot" style="margin-right:8px"></i>机器人工单数据看板</h1>
+    <div class="filters">
+      <label>日期:</label>
+      <input type="date" id="dateFrom">
+      <span style="color:rgba(255,255,255,.7)">至</span>
+      <input type="date" id="dateTo">
+      <label>产品线:</label>
+      <div class="multi-select" id="msGlobalPl">
+        <div class="multi-select-trigger" onclick="toggleMultiSelect('msGlobalPl',event)">
+          <span class="ms-text">全部产品线</span>
+          <span class="ms-count">0</span>
+          <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="multi-select-dropdown">
+          <div class="ms-search"><input type="text" placeholder="搜索产品线..." oninput="filterMsOptions('msGlobalPl',this.value)"></div>
+          <div class="ms-actions">
+            <button onclick="msSelectAll('msGlobalPl')">全选</button>
+            <button onclick="msDeselectAll('msGlobalPl')">清除</button>
+          </div>
+          <div class="ms-options"></div>
+        </div>
+      </div>
+      <label>业务域:</label>
+      <div class="multi-select" id="msGlobalBiz">
+        <div class="multi-select-trigger" onclick="toggleMultiSelect('msGlobalBiz',event)">
+          <span class="ms-text">全部业务域</span>
+          <span class="ms-count">0</span>
+          <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="multi-select-dropdown">
+          <div class="ms-search"><input type="text" placeholder="搜索业务域..." oninput="filterMsOptions('msGlobalBiz',this.value)"></div>
+          <div class="ms-actions">
+            <button onclick="msSelectAll('msGlobalBiz')">全选</button>
+            <button onclick="msDeselectAll('msGlobalBiz')">清除</button>
+          </div>
+          <div class="ms-options"></div>
+        </div>
+      </div>
+      <label>工单来源:</label>
+      <div class="multi-select" id="msGlobalSource">
+        <div class="multi-select-trigger" onclick="toggleMultiSelect('msGlobalSource',event)">
+          <span class="ms-text">全部来源</span>
+          <span class="ms-count">0</span>
+          <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="multi-select-dropdown">
+          <div class="ms-actions">
+            <button onclick="msSelectAll('msGlobalSource')">全选</button>
+            <button onclick="msDeselectAll('msGlobalSource')">清除</button>
+          </div>
+          <div class="ms-options"></div>
+        </div>
+      </div>
+      <label class="exclude-toggle-label" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="exclude4Toggle" onchange="onExcludeToggle()" style="accent-color:#667eea">
+        <span>剔除4个业务域</span>
+      </label>
+      <label class="exclude-toggle-label" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="top3DutyToggle" onchange="onTop3DutyToggle()" style="accent-color:#667eea">
+        <span>三大值班号</span>
+      </label>
+      <button class="btn btn-upload" onclick="document.getElementById('fileInput').click()"><i class="fas fa-upload"></i> 上传Excel</button>
+      <span class="file-info" id="fileInfo" style="display:none"></span>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileUpload(this)">
+      <button class="btn btn-primary" onclick="applyFilters()"><i class="fas fa-filter"></i> 筛选</button>
+      <button class="btn" onclick="resetFilters()"><i class="fas fa-rotate-left"></i></button>
+    </div>
+  </div>
+
+  <div class="upload-area hidden" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+    <i class="fas fa-cloud-upload-alt"></i>
+    <h3>点击上传 Excel 数据文件</h3>
+    <p>支持 .xlsx / .xls 格式，或拖拽文件到此处</p>
+  </div>
+  <div id="feishuDataStatus" style="display:none;background:#fff;border-radius:12px;padding:14px 18px;margin-bottom:16px;align-items:center;gap:12px;border:1px solid #e8eaed;box-shadow:0 1px 3px rgba(0,0,0,.06)">
+    <div style="width:36px;height:36px;border-radius:8px;background:#e6f4ea;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fas fa-cloud" style="color:#1e8e3e;font-size:16px"></i></div>
+    <div style="flex:1;min-width:0"><div style="color:#1a1a2e;font-size:13px;font-weight:600">飞书数据源已连接</div><div style="color:#9aa0a6;font-size:11px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="feishuDataDetail">机器人工单数据源</div></div>
+    <button class="btn" onclick="refreshFeishuData()" style="background:#f1f3f4;color:#5f6368;border:none;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;flex-shrink:0" title="重新加载本地数据文件"><i class="fas fa-rotate"></i> 刷新</button>
+  </div>
+
+  <div id="overview" class="section hidden">
+    <div class="metrics-row" id="metricCards"></div>
+  </div>
+
+  <div id="overall-trend" class="section hidden">
+    <div class="section-title"><i class="fas fa-chart-line"></i>三大值班号 机器人工单量 &amp; 机器人拦截率 趋势</div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3>总体趋势</h3>
+        <div class="chart-filters">
+          <div class="multi-select" id="msOverallPl" style="min-width:140px">
+              <div class="multi-select-trigger" onclick="toggleMultiSelect('msOverallPl',event)">
+                <span class="ms-text">全部产品线</span>
+                <span class="ms-count">0</span>
+                <i class="fas fa-chevron-down"></i>
+              </div>
+              <div class="multi-select-dropdown">
+                <div class="ms-search"><input type="text" placeholder="搜索..." oninput="filterMsOptions('msOverallPl',this.value)"></div>
+                <div class="ms-actions">
+                  <button onclick="msSelectAll('msOverallPl')">全选</button>
+                  <button onclick="msDeselectAll('msOverallPl')">清除</button>
+                </div>
+                <div class="ms-options"></div>
+              </div>
+            </div>
+          <div class="period-toggle">
+            <button class="btn-sm active" onclick="setPeriod('overall','day',this)">日</button>
+            <button class="btn-sm" onclick="setPeriod('overall','week',this)">周</button>
+            <button class="btn-sm" onclick="setPeriod('overall','month',this)">月</button>
+          </div>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="overallChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div id="product-trend" class="section hidden">
+      <div class="section-title"><i class="fas fa-layer-group"></i>产品线维度 机器人工单量 &amp; 机器人拦截率</div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>产品线趋势</h3>
+          <div class="chart-filters">
+            <div class="multi-select" id="msProductPl" style="min-width:140px">
+              <div class="multi-select-trigger" onclick="toggleMultiSelect('msProductPl',event)">
+                <span class="ms-text">全部产品线</span>
+                <span class="ms-count">0</span>
+                <i class="fas fa-chevron-down"></i>
+              </div>
+              <div class="multi-select-dropdown">
+                <div class="ms-search"><input type="text" placeholder="搜索..." oninput="filterMsOptions('msProductPl',this.value)"></div>
+                <div class="ms-actions">
+                  <button onclick="msSelectAll('msProductPl')">全选</button>
+                  <button onclick="msDeselectAll('msProductPl')">清除</button>
+                </div>
+                <div class="ms-options"></div>
+              </div>
+            </div>
+            <div class="period-toggle">
+              <button class="btn-sm active" onclick="setPeriod('product','day',this)">日</button>
+              <button class="btn-sm" onclick="setPeriod('product','week',this)">周</button>
+              <button class="btn-sm" onclick="setPeriod('product','month',this)">月</button>
+            </div>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="productChart"></canvas></div>
+      </div>
+    </div>
+
+    <div id="biz-trend" class="section hidden">
+      <div class="section-title"><i class="fas fa-diagram-project"></i>业务域维度 机器人工单量 &amp; 机器人拦截率</div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>业务域趋势</h3>
+          <div class="chart-filters">
+            <div class="multi-select" id="msBizTrend" style="min-width:140px">
+              <div class="multi-select-trigger" onclick="toggleMultiSelect('msBizTrend',event)">
+                <span class="ms-text">全部业务域</span>
+                <span class="ms-count">0</span>
+                <i class="fas fa-chevron-down"></i>
+              </div>
+              <div class="multi-select-dropdown">
+                <div class="ms-search"><input type="text" placeholder="搜索..." oninput="filterMsOptions('msBizTrend',this.value)"></div>
+                <div class="ms-actions">
+                  <button onclick="msSelectAll('msBizTrend')">全选</button>
+                  <button onclick="msDeselectAll('msBizTrend')">清除</button>
+                </div>
+                <div class="ms-options"></div>
+              </div>
+            </div>
+            <div class="period-toggle">
+              <button class="btn-sm active" onclick="setPeriod('biz','day',this)">日</button>
+              <button class="btn-sm" onclick="setPeriod('biz','week',this)">周</button>
+              <button class="btn-sm" onclick="setPeriod('biz','month',this)">月</button>
+            </div>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="bizChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="cross-table" class="section hidden">
+    <div class="section-title"><i class="fas fa-table"></i>产品线 × 业务域 层叠表</div>
+    <div class="table-card">
+      <h3>产品线-业务域维度机器人工单统计 <span style="font-weight:400;font-size:12px;color:#999">（点击产品线展开/折叠）</span></h3>
+      <div class="table-wrap" id="crossTableWrap"></div>
+    </div>
+  </div>
+  
+  <div class="section" id="knowledge-entry">
+    <div class="section-title"><i class="fas fa-brain"></i>分析工具</div>
+    <div class="two-col">
+      <div class="chart-card" onclick="showPage('knowledge')" style="cursor:pointer">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#4f6ef7,#7c5cfc);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fas fa-magnifying-glass-chart" style="color:#fff;font-size:18px"></i></div>
+          <div>
+            <h3 style="font-size:15px;color:#1a1a2e;margin-bottom:4px">知识运营分析</h3>
+            <p style="color:#666;font-size:12px">高频问题排行、未拦截归因、知识补齐建议</p>
+          </div>
+          <i class="fas fa-arrow-right" style="color:#667eea;margin-left:auto"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- end page-dashboard -->
+
+  <div class="page-container" id="page-manual">
+    <div class="header">
+      <h1><i class="fas fa-headset" style="margin-right:8px"></i>人工工单总览</h1>
+      <div class="filters">
+        <label>日期:</label>
+        <input type="date" id="manualDateFrom">
+        <span style="color:#9aa0a6">至</span>
+        <input type="date" id="manualDateTo">
+        <label>产品线:</label>
+        <div class="multi-select" id="msManualPl">
+          <div class="multi-select-trigger" onclick="toggleMultiSelect('msManualPl',event)">
+            <span class="ms-text">全部产品线</span><span class="ms-count">0</span><i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="multi-select-dropdown">
+            <div class="ms-search"><input type="text" placeholder="搜索产品线..." oninput="filterMsOptions('msManualPl',this.value)"></div>
+            <div class="ms-actions"><button onclick="msSelectAll('msManualPl')">全选</button><button onclick="msDeselectAll('msManualPl')">清除</button></div>
+            <div class="ms-options"></div>
+          </div>
+        </div>
+        <label>业务域:</label>
+        <div class="multi-select" id="msManualBiz">
+          <div class="multi-select-trigger" onclick="toggleMultiSelect('msManualBiz',event)">
+            <span class="ms-text">全部业务域</span><span class="ms-count">0</span><i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="multi-select-dropdown">
+            <div class="ms-search"><input type="text" placeholder="搜索业务域..." oninput="filterMsOptions('msManualBiz',this.value)"></div>
+            <div class="ms-actions"><button onclick="msSelectAll('msManualBiz')">全选</button><button onclick="msDeselectAll('msManualBiz')">清除</button></div>
+            <div class="ms-options"></div>
+          </div>
+        </div>
+        <label>重点业务域:</label>
+        <div class="multi-select" id="msManualKeyBiz">
+          <div class="multi-select-trigger" onclick="toggleMultiSelect('msManualKeyBiz',event)">
+            <span class="ms-text">全部重点业务域</span><span class="ms-count">0</span><i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="multi-select-dropdown">
+            <div class="ms-search"><input type="text" placeholder="搜索重点业务域..." oninput="filterMsOptions('msManualKeyBiz',this.value)"></div>
+            <div class="ms-actions"><button onclick="msSelectAll('msManualKeyBiz')">全选</button><button onclick="msDeselectAll('msManualKeyBiz')">清除</button></div>
+            <div class="ms-options"></div>
+          </div>
+        </div>
+        <label class="exclude-toggle-label" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="manualTop3DutyToggle" onchange="onManualTop3DutyToggle()" style="accent-color:#667eea">
+          <span>三大值班号</span>
+        </label>
+        <button class="btn btn-primary" onclick="applyManualFilters()"><i class="fas fa-filter"></i> 筛选</button>
+        <button class="btn" onclick="resetManualFilters()"><i class="fas fa-rotate-left"></i></button>
+      </div>
+    </div>
+
+    <div id="manualDataStatus" class="filters" style="margin-bottom:16px">
+      <i class="fas fa-database" style="color:#4f6ef7"></i>
+      <span id="manualDataDetail" style="font-size:12px;color:#5f6368">人工工单明细加载中...</span>
+    </div>
+
+    <div class="metrics-row" id="manualMetricCards"></div>
+
+    <div class="section">
+      <div class="section-title"><i class="fas fa-chart-line"></i>TS承接工单量 &amp; TS拦截率 趋势<span class="manual-note">双 Y 轴，受顶部筛选联动</span></div>
+      <div class="chart-card">
+        <div class="chart-header"><h3>总体趋势</h3><div class="period-toggle"><button class="btn-sm active" onclick="setManualPeriod('overall','day',this)">日</button><button class="btn-sm" onclick="setManualPeriod('overall','week',this)">周</button><button class="btn-sm" onclick="setManualPeriod('overall','month',this)">月</button></div></div>
+        <div class="chart-wrap"><canvas id="manualOverallChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="section">
+        <div class="section-title"><i class="fas fa-layer-group"></i>产品线维度 TS承接工单量 &amp; TS拦截率</div>
+        <div class="chart-card">
+          <div class="chart-header"><h3>产品线趋势</h3><div class="period-toggle"><button class="btn-sm active" onclick="setManualPeriod('product','day',this)">日</button><button class="btn-sm" onclick="setManualPeriod('product','week',this)">周</button><button class="btn-sm" onclick="setManualPeriod('product','month',this)">月</button></div></div>
+          <div class="chart-wrap"><canvas id="manualProductChart"></canvas></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title"><i class="fas fa-diagram-project"></i>业务域维度 TS承接工单量 &amp; TS拦截率</div>
+        <div class="chart-card">
+          <div class="chart-header"><h3>业务域趋势</h3><div class="period-toggle"><button class="btn-sm active" onclick="setManualPeriod('biz','day',this)">日</button><button class="btn-sm" onclick="setManualPeriod('biz','week',this)">周</button><button class="btn-sm" onclick="setManualPeriod('biz','month',this)">月</button></div></div>
+          <div class="chart-wrap"><canvas id="manualBizChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><i class="fas fa-table"></i>产品线 × 业务域 层叠表</div>
+      <div class="table-card">
+        <h3>人工工单与 TS 拦截统计 <span style="font-weight:400;font-size:12px;color:#999">（点击产品线展开/折叠）</span></h3>
+        <div class="table-wrap" id="manualCrossTableWrap"></div>
+      </div>
+    </div>
+  </div><!-- end page-manual -->
+
+  <!-- ==================== V1.1 知识运营分析页面 ==================== -->
+  <div class="page-container" id="page-knowledge">
+    <div class="header">
+      <h1><i class="fas fa-brain" style="margin-right:8px"></i>知识运营分析</h1>
+      <div class="filters">
+        <label>日期:</label>
+        <input type="date" id="kDateFrom">
+        <span style="color:rgba(255,255,255,.7)">至</span>
+        <input type="date" id="kDateTo">
+        <label>产品线:</label>
+        <div class="multi-select" id="msKPl">
+          <div class="multi-select-trigger" onclick="toggleMultiSelect('msKPl',event)">
+            <span class="ms-text">全部产品线</span><span class="ms-count">0</span><i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="multi-select-dropdown">
+            <div class="ms-search"><input type="text" placeholder="搜索..." oninput="filterMsOptions('msKPl',this.value)"></div>
+            <div class="ms-actions"><button onclick="msSelectAll('msKPl')">全选</button><button onclick="msDeselectAll('msKPl')">清除</button></div>
+            <div class="ms-options"></div>
+          </div>
+        </div>
+        <label>业务域:</label>
+        <div class="multi-select" id="msKBiz">
+          <div class="multi-select-trigger" onclick="toggleMultiSelect('msKBiz',event)">
+            <span class="ms-text">全部业务域</span><span class="ms-count">0</span><i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="multi-select-dropdown">
+            <div class="ms-search"><input type="text" placeholder="搜索..." oninput="filterMsOptions('msKBiz',this.value)"></div>
+            <div class="ms-actions"><button onclick="msSelectAll('msKBiz')">全选</button><button onclick="msDeselectAll('msKBiz')">清除</button></div>
+            <div class="ms-options"></div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="applyKnowledgeFilters()"><i class="fas fa-filter"></i> 分析</button>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="section">
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-ranking-star"></i> 高频问题排行 TOP 20</h3></div><div class="table-wrap" id="kHotQuestions" style="max-height:500px"><p style="color:#999;text-align:center;padding:40px">请先上传机器人问答明细数据</p></div></div>
+      </div>
+      <div class="section">
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chart-line"></i> 高频问题趋势</h3><div class="chart-filters"><div class="period-toggle"><button class="btn-sm active" onclick="setKPeriod('day',this)">日</button><button class="btn-sm" onclick="setKPeriod('week',this)">周</button><button class="btn-sm" onclick="setKPeriod('month',this)">月</button></div></div></div><div class="chart-wrap"><canvas id="kHotTrendChart"></canvas></div></div>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="section">
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-shield-xmark"></i> 未拦截问题排行</h3></div><div class="table-wrap" id="kUnblockedQuestions" style="max-height:400px"><p style="color:#999;text-align:center;padding:40px">请先上传数据</p></div></div>
+      </div>
+      <div class="section">
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-magnifying-glass-chart"></i> 未拦截原因分析</h3></div><div class="chart-wrap" style="height:300px"><canvas id="kUnblockedReasonChart"></canvas></div></div>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="section">
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-lightbulb"></i> 人工解决方案 TOP</h3></div><div class="table-wrap" id="kManualSolutions" style="max-height:400px"><p style="color:#999;text-align:center;padding:40px">请先上传数据</p></div></div>
+      </div>
+      <div class="section">
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-list-check"></i> 工单详情</h3></div><div class="table-wrap" id="kTicketDetail" style="max-height:400px"><p style="color:#999;text-align:center;padding:40px">请先上传数据</p></div></div>
+      </div>
+    </div>
+  </div><!-- end page-knowledge -->
+
+  <!-- ==================== V1.1 运营后台页面 ==================== -->
+  <div class="page-container" id="page-admin">
+    <div class="header">
+      <h1><i class="fas fa-gear" style="margin-right:8px"></i>运营后台</h1>
+      <div class="admin-tabs">
+        <button class="btn btn-primary admin-tab active" onclick="switchAdminTab('data',event)"><i class="fas fa-database"></i> 数据管理</button>
+        <button class="btn admin-tab" onclick="switchAdminTab('prompt',event)"><i class="fas fa-pen-to-square"></i> Prompt配置</button>
+        <button class="btn admin-tab" onclick="switchAdminTab('pageConfig',event)"><i class="fas fa-sliders"></i> 页面配置</button>
+      </div>
+    </div>
+    <!-- 数据管理 -->
+    <div class="section admin-panel" id="admin-data">
+      <div class="two-col">
+        <div class="chart-card">
+          <h3 style="margin-bottom:12px"><i class="fas fa-robot"></i> 机器人工单明细</h3>
+          <p style="color:#666;font-size:13px;margin-bottom:12px">上传机器人工单明细 Excel 文件</p>
+          <button class="btn btn-upload" onclick="document.getElementById('adminTicketInput').click()" style="display:block;width:100%;padding:16px;text-align:center;margin-bottom:8px">
+            <i class="fas fa-upload"></i> 上传文件
+          </button>
+          <input type="file" id="adminTicketInput" accept=".xlsx,.xls" onchange="handleAdminTicketUpload(this)" style="display:none">
+          <span class="file-info" id="adminTicketInfo" style="color:#10b981;font-size:12px"></span>
+        </div>
+        <div class="chart-card">
+          <h3 style="margin-bottom:12px"><i class="fas fa-comments"></i> 机器人问答明细</h3>
+          <p style="color:#666;font-size:13px;margin-bottom:12px">上传机器人问答明细 Excel 文件</p>
+          <button class="btn btn-upload" onclick="document.getElementById('adminQAInput').click()" style="display:block;width:100%;padding:16px;text-align:center;margin-bottom:8px">
+            <i class="fas fa-upload"></i> 上传文件
+          </button>
+          <input type="file" id="adminQAInput" accept=".xlsx,.xls" onchange="handleAdminQAUpload(this)" style="display:none">
+          <span class="file-info" id="adminQAInfo" style="color:#10b981;font-size:12px"></span>
+        </div>
+      </div>
+    </div>
+    <!-- Prompt配置 -->
+    <div class="section admin-panel hidden" id="admin-prompt">
+      <div class="chart-card" style="margin-bottom:16px">
+        <h3 style="margin-bottom:8px"><i class="fas fa-magnifying-glass"></i> 高频问题分析 Prompt</h3>
+        <textarea id="promptHotQuestions" style="width:100%;height:120px;border:1px solid #ddd;border-radius:8px;padding:12px;font-size:13px;font-family:monospace;resize:vertical;color:#1a1a2e">分析以下机器人问答数据，提取高频问题TOP20。对每个问题：1)标准化问题表述 2)识别问题类型 3)统计出现次数 4)评估严重程度。输出格式：排名 | 问题 | 类型 | 次数 | 严重度</textarea>
+        <button class="btn btn-primary" onclick="savePrompt('promptHotQuestions')" style="margin-top:8px"><i class="fas fa-save"></i> 保存</button>
+      </div>
+      <div class="chart-card" style="margin-bottom:16px">
+        <h3 style="margin-bottom:8px"><i class="fas fa-triangle-exclamation"></i> 未拦截归因 Prompt</h3>
+        <textarea id="promptUnblocked" style="width:100%;height:120px;border:1px solid #ddd;border-radius:8px;padding:12px;font-size:13px;font-family:monospace;resize:vertical;color:#1a1a2e">分析未拦截成功的工单，找出根本原因。对每个未拦截问题：1)分析机器人回答内容 2)判断未拦截原因（知识库缺失/理解错误/回答不准确/其它） 3)提出改进建议。输出格式：问题 | 原因分类 | 具体原因 | 改进建议</textarea>
+        <button class="btn btn-primary" onclick="savePrompt('promptUnblocked')" style="margin-top:8px"><i class="fas fa-save"></i> 保存</button>
+      </div>
+      <div class="chart-card">
+        <h3 style="margin-bottom:8px"><i class="fas fa-book-medical"></i> 知识补齐 Prompt</h3>
+        <textarea id="promptKnowledge" style="width:100%;height:120px;border:1px solid #ddd;border-radius:8px;padding:12px;font-size:13px;font-family:monospace;resize:vertical;color:#1a1a2e">根据未拦截问题和人工解决方案，生成知识库补齐建议。对每个缺失知识点：1)知识点标题 2)所属业务域 3)建议内容 4)优先级（高/中/低）。输出格式：业务域 | 知识点 | 内容 | 优先级</textarea>
+        <button class="btn btn-primary" onclick="savePrompt('promptKnowledge')" style="margin-top:8px"><i class="fas fa-save"></i> 保存</button>
+      </div>
+    </div>
+    <!-- 页面配置 -->
+    <div class="section admin-panel hidden" id="admin-pageConfig">
+      <div class="chart-card">
+        <h3 style="margin-bottom:12px"><i class="fas fa-calendar"></i> 默认日期范围</h3>
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+          <label style="color:#1a1a2e;font-size:13px">开始:</label>
+          <input type="date" id="configDefaultDateFrom" style="background:#f0f0f5;border:1px solid #ddd;padding:8px 12px;border-radius:8px;font-size:13px;color:#1a1a2e">
+          <label style="color:#1a1a2e;font-size:13px">结束:</label>
+          <input type="date" id="configDefaultDateTo" style="background:#f0f0f5;border:1px solid #ddd;padding:8px 12px;border-radius:8px;font-size:13px;color:#1a1a2e">
+        </div>
+        <h3 style="margin-bottom:12px;margin-top:16px"><i class="fas fa-filter"></i> 默认筛选项</h3>
+        <div style="display:flex;gap:20px">
+          <div>
+            <label style="color:#1a1a2e;font-size:13px;display:block;margin-bottom:4px">默认产品线:</label>
+            <div class="multi-select" id="msConfigPl" style="min-width:200px">
+              <div class="multi-select-trigger" onclick="toggleMultiSelect('msConfigPl',event)" style="background:#f0f0f5;border:1px solid #ddd;color:#1a1a2e">
+                <span class="ms-text">全部</span><span class="ms-count">0</span><i class="fas fa-chevron-down"></i>
+              </div>
+              <div class="multi-select-dropdown"><div class="ms-actions"><button onclick="msSelectAll('msConfigPl')">全选</button><button onclick="msDeselectAll('msConfigPl')">清除</button></div><div class="ms-options"></div></div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="savePageConfig()" style="margin-top:16px"><i class="fas fa-save"></i> 保存配置</button>
+      </div>
+    </div>
+  </div><!-- end page-admin -->
+  <div class="page-container" id="page-biweekly">
+    <iframe class="embedded-dashboard-frame" src="biweekly-review-dashboard.html" title="值班号工单双周复盘看板"></iframe>
+  </div><!-- end page-biweekly -->
+</main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== GLOBAL STATE ====================
+var RAW_ROWS = [];
+var DATA = null;
+var TOP3_DUTY_LINES = ['得物总值班号', '技术部值班号', '数据平台值班号'];
+var currentFilters = { dateFrom: null, dateTo: null, productLines: [], bizDomains: [], sourceDomains: [], exclude4Domains: false, top3DutyOnly: false };
+var periods = { overall: 'day', product: 'day', biz: 'day' };
+var charts = { overall: null, product: null, biz: null };
+var EXCLUDED = ['不知道该找谁', '特征平台', 'Galaxy大数据平台', '实时计算平台'];
+
+// ==================== TOAST ====================
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast ' + (type||'') + ' show';
+  setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+
+// ==================== EXCEL UPLOAD ====================
+function handleFileUpload(input) {
+  var file = input.files[0];
+  if (!file) return;
+  document.getElementById('fileInfo').textContent = file.name;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var wb = XLSX.read(e.target.result, {type:'array'});
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      var json = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      RAW_ROWS = json;
+      processData();
+      showToast('成功加载 ' + RAW_ROWS.length + ' 条数据', 'success');
+    } catch(err) {
+      showToast('文件解析失败: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Drag & drop on upload area
+var uploadArea = document.getElementById('uploadArea');
+if (uploadArea) {
+  uploadArea.addEventListener('dragover', function(e){ e.preventDefault(); this.style.borderColor='#10b981'; });
+  uploadArea.addEventListener('dragleave', function(e){ this.style.borderColor=''; });
+  uploadArea.addEventListener('drop', function(e){
+    e.preventDefault(); this.style.borderColor='';
+    var file = e.dataTransfer.files[0];
+    if (file) {
+      var input = document.getElementById('fileInput');
+      var dt = new DataTransfer(); dt.items.add(file); input.files = dt.files;
+      handleFileUpload(input);
+    }
+  });
+}
+
+// ==================== DATA PROCESSING ====================
+function norm(s) { return (s||'').toString().trim(); }
+function isRobotSrc(s) { return s==='飞书搜索' || s==='飞书群' || s==='工单链接'; }
+
+function calcMetrics(rows, exclude4) {
+  var total = rows.length;
+  var filtered = exclude4 ? rows.filter(function(r){ return EXCLUDED.indexOf(norm(r['业务域']))===-1; }) : rows;
+  var robot = filtered.filter(function(r){ return isRobotSrc(norm(r['工单来源'])); });
+  var robotCount = robot.length;
+  var blocked = robot.filter(function(r){ return norm(r['是否拦截成功'])==='是'; }).length;
+  var rate = robotCount > 0 ? Math.round(blocked/robotCount*10000)/100 : 0;
+  return {'总工单量':total, '机器人工单量':robotCount, '机器人拦截工单量':blocked, '机器人拦截率':rate};
+}
+
+function parseDate(str) {
+  try {
+    var s = (str||'').toString().trim();
+    if (!s) return '';
+    // Handle Excel serial numbers
+    if (/^\d+(\.\d+)?$/.test(s) && parseFloat(s) > 40000) {
+      var days = Math.floor(parseFloat(s));
+      var d = new Date(1899, 11, 30);
+      d.setDate(d.getDate() + days);
+      return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+    // Try matching YYYY-MM-DD pattern first (most reliable)
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    // Fallback: parse with Date
+    if (s.indexOf(' ') > 0 && s.indexOf('T') < 0) s = s.replace(' ', 'T');
+    var d = new Date(s);
+    if (!isNaN(d.getTime())) return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    return '';
+  } catch(e) { return ''; }
+}
+
+function groupBy(arr, keys) {
+  var map = {};
+  arr.forEach(function(r){
+    var k = keys.map(function(kk){ return r[kk]||''; }).join('|||');
+    if (!map[k]) map[k] = [];
+    map[k].push(r);
+  });
+  return Object.values(map);
+}
+
+function isTop3DutyLine(line) { return TOP3_DUTY_LINES.indexOf(norm(line)) >= 0; }
+function applyRobotTop3Rows(rows) {
+  if (!currentFilters.top3DutyOnly) return rows;
+  return rows.filter(function(r){ return isTop3DutyLine(r['产品线']); });
+}
+function effectiveRobotProductLines(pls) {
+  if (!currentFilters.top3DutyOnly) return pls;
+  if (!pls || pls.length === 0) return TOP3_DUTY_LINES.slice();
+  return pls.filter(isTop3DutyLine);
+}
+function hasEmptyRobotTop3ProductIntersection() {
+  return currentFilters.top3DutyOnly && currentFilters.productLines.length > 0 && effectiveRobotProductLines(currentFilters.productLines).length === 0;
+}
+
+function processData() {
+  var rows = RAW_ROWS;
+  // Normalize
+  rows.forEach(function(r){
+    r['日期'] = parseDate(r['工单创建时间']);
+    r['业务域'] = norm(r['业务域']);
+    r['工单来源'] = norm(r['工单来源']);
+    r['是否使用AI能力'] = norm(r['是否使用AI能力']);
+    r['是否拦截成功'] = norm(r['是否拦截成功']);
+    r['产品线'] = norm(r['产品线']);
+    r['月'] = norm(r['月']);
+    r['周'] = norm(r['周']);
+  });
+
+  var productLines = [], plSet = {};
+  var bizDomains = [], bizSet = {};
+  rows.forEach(function(r){
+    if (r['产品线'] && !plSet[r['产品线']]) { plSet[r['产品线']]=true; productLines.push(r['产品线']); }
+    if (r['业务域'] && !bizSet[r['业务域']]) { bizSet[r['业务域']]=true; bizDomains.push(r['业务域']); }
+  });
+  productLines.sort(); bizDomains.sort();
+
+  var allDates = []; var dateSet = {};
+  rows.forEach(function(r){ if (r['日期'] && !dateSet[r['日期']]) { dateSet[r['日期']]=true; allDates.push(r['日期']); } });
+  allDates.sort();
+
+  // Aggregate helpers
+  function aggDaily(groups, dimKey, isPL) {
+    var res = [];
+    groups.forEach(function(g){
+      var groups2 = groupBy(g, ['日期']);
+      groups2.forEach(function(g2){
+        var m = calcMetrics(g2, isPL);
+        m[dimKey] = g[0][dimKey];
+        m['日期'] = g2[0]['日期'];
+        res.push(m);
+      });
+    });
+    return res;
+  }
+  function aggWeekly(groups, dimKey, isPL) {
+    var res = [];
+    groups.forEach(function(g){
+      var groups2 = groupBy(g, ['周']);
+      groups2.forEach(function(g2){
+        var m = calcMetrics(g2, isPL);
+        m[dimKey] = g[0][dimKey];
+        m['周'] = g2[0]['周'];
+        res.push(m);
+      });
+    });
+    return res;
+  }
+  function aggMonthly(groups, dimKey, isPL) {
+    var res = [];
+    groups.forEach(function(g){
+      var groups2 = groupBy(g, ['月']);
+      groups2.forEach(function(g2){
+        var m = calcMetrics(g2, isPL);
+        m[dimKey] = g[0][dimKey];
+        m['月'] = g2[0]['月'];
+        res.push(m);
+      });
+    });
+    return res;
+  }
+  function aggTotal(groups, dimKey, isPL) {
+    return groups.map(function(g){
+      var m = calcMetrics(g, isPL);
+      m[dimKey] = g[0][dimKey];
+      m['类型'] = '总计';
+      return m;
+    });
+  }
+
+  // Product line aggregations
+  var plGroups = groupBy(rows, ['产品线']);
+  // Without exclusion (for display when toggle is off)
+  var productDaily = aggDaily(plGroups, '产品线', false);
+  var productWeekly = aggWeekly(plGroups, '产品线', false);
+  var productMonthly = aggMonthly(plGroups, '产品线', false);
+  var productTotal = aggTotal(plGroups, '产品线', false);
+  // With exclusion (for display when toggle is on)
+  var productDailyEx = aggDaily(plGroups, '产品线', true);
+  var productWeeklyEx = aggWeekly(plGroups, '产品线', true);
+  var productMonthlyEx = aggMonthly(plGroups, '产品线', true);
+  var productTotalEx = aggTotal(plGroups, '产品线', true);
+
+  // Business domain aggregations
+  var bizRows = rows.filter(function(r){ return r['业务域']!==''; });
+  var bizGroups = groupBy(bizRows, ['业务域']);
+  // Add product line info to biz records
+  function addProductLine(records) {
+    records.forEach(function(r){
+      var found = bizRows.find(function(br){ return br['业务域']===r['业务域']; });
+      if (found) r['产品线'] = found['产品线'];
+    });
+  }
+  var bizDaily = aggDaily(bizGroups, '业务域', false);
+  var bizWeekly = aggWeekly(bizGroups, '业务域', false);
+  var bizMonthly = aggMonthly(bizGroups, '业务域', false);
+  var bizTotal = aggTotal(bizGroups, '业务域', false);
+  addProductLine(bizDaily); addProductLine(bizWeekly); addProductLine(bizMonthly); addProductLine(bizTotal);
+
+  // Overall (三大值班号) - aggregated by date/week/month only
+  // Without exclusion
+  var overallDaily = groupBy(rows, ['日期']).map(function(g){
+    var m = calcMetrics(g, false); m['日期'] = g[0]['日期']; return m;
+  });
+  var overallWeekly = groupBy(rows, ['周']).map(function(g){
+    var m = calcMetrics(g, false); m['周'] = g[0]['周']; return m;
+  });
+  var overallMonthly = groupBy(rows, ['月']).map(function(g){
+    var m = calcMetrics(g, false); m['月'] = g[0]['月']; return m;
+  });
+  var overallTotal = calcMetrics(rows, false);
+  // With exclusion
+  var overallDailyEx = groupBy(rows, ['日期']).map(function(g){
+    var m = calcMetrics(g, true); m['日期'] = g[0]['日期']; return m;
+  });
+  var overallWeeklyEx = groupBy(rows, ['周']).map(function(g){
+    var m = calcMetrics(g, true); m['周'] = g[0]['周']; return m;
+  });
+  var overallMonthlyEx = groupBy(rows, ['月']).map(function(g){
+    var m = calcMetrics(g, true); m['月'] = g[0]['月']; return m;
+  });
+  var overallTotalEx = calcMetrics(rows, true);
+
+  // Cross table
+  var cross = [];
+  var crossGroups = groupBy(bizRows, ['产品线','业务域']);
+  crossGroups.forEach(function(g){
+    var m = calcMetrics(g, false);
+    m['产品线'] = g[0]['产品线']; m['业务域'] = g[0]['业务域'];
+    cross.push(m);
+  });
+  // With exclusion
+  var crossEx = [];
+  crossGroups.forEach(function(g){
+    var m = calcMetrics(g, true);
+    m['产品线'] = g[0]['产品线']; m['业务域'] = g[0]['业务域'];
+    crossEx.push(m);
+  });
+  // Build tree
+  function buildCrossTree(crossData) {
+    var tree = {};
+    crossData.forEach(function(r){
+      var pl = r['产品线'];
+      if (!tree[pl]) tree[pl] = { total: {'总工单量':0,'机器人工单量':0,'机器人拦截工单量':0,'机器人拦截率':0}, domains: {} };
+      tree[pl].domains[r['业务域']] = r;
+      tree[pl].total['总工单量'] += r['总工单量'];
+      tree[pl].total['机器人工单量'] += r['机器人工单量'];
+      tree[pl].total['机器人拦截工单量'] += r['机器人拦截工单量'];
+    });
+    Object.keys(tree).forEach(function(pl){
+      var t = tree[pl].total;
+      t['机器人拦截率'] = t['机器人工单量'] > 0 ? Math.round(t['机器人拦截工单量']/t['机器人工单量']*10000)/100 : 0;
+    });
+    return tree;
+  }
+  var crossTree = buildCrossTree(cross);
+  var crossTreeEx = buildCrossTree(crossEx);
+
+  DATA = {
+    productLines: productLines,
+    bizDomains: bizDomains,
+    allDates: allDates,
+    dateRange: { min: allDates[0]||'', max: allDates[allDates.length-1]||'' },
+    product: { daily: productDaily, weekly: productWeekly, monthly: productMonthly, total: productTotal },
+    productEx: { daily: productDailyEx, weekly: productWeeklyEx, monthly: productMonthlyEx, total: productTotalEx },
+    business: { daily: bizDaily, weekly: bizWeekly, monthly: bizMonthly, total: bizTotal },
+    overall: { daily: overallDaily, weekly: overallWeekly, monthly: overallMonthly, total: overallTotal },
+    overallEx: { daily: overallDailyEx, weekly: overallWeeklyEx, monthly: overallMonthlyEx, total: overallTotalEx },
+    cross: cross,
+    crossEx: crossEx,
+    crossTree: crossTree,
+    crossTreeEx: crossTreeEx
+  };
+
+  // Populate UI
+  initFilters();
+  applyFilters();
+
+  // Hide upload area, show sections
+  document.getElementById('uploadArea').classList.add('hidden');
+  var sections = document.querySelectorAll('.section');
+  for (var i=0; i<sections.length; i++) sections[i].classList.remove('hidden');
+}
+
+// ==================== MULTI-SELECT ====================
+function getMsState(msId) {
+  if (msId === 'msGlobalBiz') return { selected: currentFilters.bizDomains, onChange: function(v){ currentFilters.bizDomains = v; } };
+  if (msId === 'msGlobalPl') return { selected: currentFilters.productLines, onChange: function(v){ currentFilters.productLines = v; } };
+  if (msId === 'msGlobalSource') return { selected: currentFilters.sourceDomains, onChange: function(v){ currentFilters.sourceDomains = v; } };
+  if (msId === 'msManualPl') return { selected: manualFilters.productLines, onChange: function(v){ manualFilters.productLines = v; } };
+  if (msId === 'msManualBiz') return { selected: manualFilters.bizDomains, onChange: function(v){ manualFilters.bizDomains = v; } };
+  if (msId === 'msManualKeyBiz') return { selected: manualFilters.keyBizDomains, onChange: function(v){ manualFilters.keyBizDomains = v; } };
+  if (msId === 'msBizTrend') return { selected: _bizTrendSelected||[], onChange: function(v){ _bizTrendSelected = v; } };
+  if (msId === 'msOverallPl') return { selected: _overallPlSelected||[], onChange: function(v){ _overallPlSelected = v; } };
+  if (msId === 'msProductPl') return { selected: _productPlSelected||[], onChange: function(v){ _productPlSelected = v; } };
+  return { selected: [], onChange: function(){} };
+}
+var _bizTrendSelected = [];
+var _overallPlSelected = [];
+var _productPlSelected = [];
+
+var SOURCE_OPTIONS = ['飞书搜索', '飞书群', '工单链接'];
+
+function buildMsOptions(msId) {
+  var el = document.getElementById(msId);
+  if (!el) return;
+  var container = el.querySelector('.ms-options');
+  if (!container) return;
+  var items;
+  if (msId.indexOf('ManualKeyBiz') >= 0) items = (MANUAL_DATA && MANUAL_DATA.keyBizDomains) ? MANUAL_DATA.keyBizDomains : [];
+  else if (msId.indexOf('ManualBiz') >= 0) items = (MANUAL_DATA && MANUAL_DATA.bizDomains) ? MANUAL_DATA.bizDomains : [];
+  else if (msId.indexOf('ManualPl') >= 0) items = (MANUAL_DATA && MANUAL_DATA.productLines) ? MANUAL_DATA.productLines : [];
+  else if (msId.indexOf('Pl') >= 0) items = (DATA && DATA.productLines) ? DATA.productLines : [];
+  else if (msId.indexOf('Source') >= 0) items = SOURCE_OPTIONS;
+  else items = (DATA && DATA.bizDomains) ? DATA.bizDomains : [];
+  var html = '';
+  items.forEach(function(d){
+    html += '<label><input type="checkbox" value="'+d.replace(/"/g,'&quot;')+'" onchange="onMsCheckboxChange(\''+msId+'\')"><span>'+d+'</span></label>';
+  });
+  container.innerHTML = html;
+}
+
+function onMsCheckboxChange(msId) {
+  var el = document.getElementById(msId);
+  if (!el) return;
+  var container = el.querySelector('.ms-options');
+  var checks = container.querySelectorAll('input[type=checkbox]:checked');
+  var selected = [];
+  for (var i=0; i<checks.length; i++) selected.push(checks[i].value);
+  var state = getMsState(msId);
+  state.selected = selected;
+  state.onChange(selected);
+  updateMsTrigger(msId);
+  // Chart-specific multi-selects: sync to global filter and trigger charts
+  if (msId === 'msOverallPl' || msId === 'msProductPl') {
+    currentFilters.productLines = selected;
+    applyFilters();
+  }
+  if (msId === 'msBizTrend') {
+    currentFilters.bizDomains = selected;
+    applyFilters();
+  }
+  if (msId === 'msGlobalBiz' || msId === 'msGlobalPl' || msId === 'msGlobalSource') applyFilters();
+  if (msId === 'msManualPl' || msId === 'msManualBiz' || msId === 'msManualKeyBiz') applyManualFilters();
+}
+
+function updateMsTrigger(msId) {
+  var state = getMsState(msId);
+  var el = document.getElementById(msId);
+  if (!el) return;
+  var trigger = el.querySelector('.multi-select-trigger');
+  var textEl = trigger.querySelector('.ms-text');
+  var countEl = trigger.querySelector('.ms-count');
+  var isPl = msId.indexOf('Pl') >= 0;
+  var isSrc = msId.indexOf('Source') >= 0;
+  var isKeyBiz = msId.indexOf('KeyBiz') >= 0;
+  var defaultLabel = isPl ? '全部产品线' : isSrc ? '全部来源' : isKeyBiz ? '全部重点业务域' : '全部业务域';
+  var selectedLabel = isPl ? '已选产品线' : isSrc ? '已选来源' : isKeyBiz ? '已选重点业务域' : '已选业务域';
+  if (state.selected.length === 0) {
+    textEl.textContent = defaultLabel;
+    countEl.classList.remove('show');
+  } else if (state.selected.length <= 3) {
+    textEl.textContent = state.selected.join(', ');
+    countEl.classList.remove('show');
+  } else {
+    textEl.textContent = selectedLabel;
+    countEl.textContent = state.selected.length;
+    countEl.classList.add('show');
+  }
+}
+
+function toggleMultiSelect(msId, e) {
+  if (e) { e.stopPropagation(); }
+  var ms = document.getElementById(msId);
+  var wasOpen = ms.classList.contains('open');
+  // Close all
+  document.querySelectorAll('.multi-select.open').forEach(function(m){ m.classList.remove('open'); });
+  if (!wasOpen) {
+    ms.classList.add('open');
+    // Sync checkboxes
+    var state = getMsState(msId);
+    var checks = ms.querySelectorAll('input[type=checkbox]');
+    checks.forEach(function(cb){ cb.checked = state.selected.indexOf(cb.value) >= 0; });
+  }
+}
+
+function filterMsOptions(msId, query) {
+  var container = document.getElementById(msId).querySelector('.ms-options');
+  var labels = container.querySelectorAll('label');
+  var q = query.toLowerCase();
+  labels.forEach(function(l){
+    if (q === '' || l.textContent.toLowerCase().indexOf(q) >= 0) l.classList.remove('hidden');
+    else l.classList.add('hidden');
+  });
+}
+
+function msSelectAll(msId) {
+  var container = document.getElementById(msId).querySelector('.ms-options');
+  var checks = container.querySelectorAll('input[type=checkbox]');
+  checks.forEach(function(cb){ cb.checked = true; });
+  onMsCheckboxChange(msId);
+}
+
+function msDeselectAll(msId) {
+  var container = document.getElementById(msId).querySelector('.ms-options');
+  var checks = container.querySelectorAll('input[type=checkbox]');
+  checks.forEach(function(cb){ cb.checked = false; });
+  onMsCheckboxChange(msId);
+}
+
+// Close multi-select on outside click
+document.addEventListener('click', function(e){
+  if (!e.target.closest('.multi-select')) {
+    document.querySelectorAll('.multi-select.open').forEach(function(m){ m.classList.remove('open'); });
+  }
+});
+
+// ==================== FILTERS ====================
+function initFilters() {
+  document.getElementById('dateFrom').value = DATA.dateRange.min;
+  document.getElementById('dateTo').value = DATA.dateRange.max;
+  currentFilters.dateFrom = DATA.dateRange.min;
+  currentFilters.dateTo = DATA.dateRange.max;
+
+  buildMsOptions('msGlobalPl');
+  buildMsOptions('msOverallPl');
+  buildMsOptions('msProductPl');
+  buildMsOptions('msGlobalBiz');
+  buildMsOptions('msBizTrend');
+  buildMsOptions('msGlobalSource');
+  updateMsTrigger('msGlobalPl');
+  updateMsTrigger('msOverallPl');
+  updateMsTrigger('msProductPl');
+  updateMsTrigger('msGlobalBiz');
+  updateMsTrigger('msBizTrend');
+  updateMsTrigger('msGlobalSource');
+}
+
+// ==================== DATE HELPERS ====================
+function weekToRange(ws) {
+  var p = ws.split('-'); var y = +p[0], w = +p[1];
+  var jan1 = new Date(y,0,1);
+  var dow = jan1.getDay();
+  var firstMon = new Date(jan1); firstMon.setDate(jan1.getDate()+(dow<=1?1-dow:8-dow));
+  var mon = new Date(firstMon); mon.setDate(firstMon.getDate()+(w-1)*7);
+  var sun = new Date(mon); sun.setDate(mon.getDate()+6);
+  return {start: mon.toISOString().slice(0,10), end: sun.toISOString().slice(0,10)};
+}
+function monthToRange(ms) {
+  var p = ms.split('-'); var y = +p[0], m = +p[1];
+  return {start: y+'-'+String(m).padStart(2,'0')+'-01', end: y+'-'+String(m).padStart(2,'0')+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0')};
+}
+function inDateRange(dateStr, period) {
+  if (!currentFilters.dateFrom && !currentFilters.dateTo) return true;
+  if (!dateStr) return false;
+  var range;
+  if (period==='week') range = weekToRange(dateStr);
+  else if (period==='month') range = monthToRange(dateStr);
+  else range = {start:dateStr, end:dateStr};
+  if (currentFilters.dateFrom && range.end && range.end < currentFilters.dateFrom) return false;
+  if (currentFilters.dateTo && range.start && range.start > currentFilters.dateTo) return false;
+  return true;
+}
+
+function sumByDateRange(records) {
+  var total=0, robot=0, blocked=0;
+  records.forEach(function(r){
+    if (!inDateRange(r['日期'],'day')) return;
+    total += r['总工单量']||0; robot += r['机器人工单量']||0; blocked += r['机器人拦截工单量']||0;
+  });
+  var rate = robot>0 ? Math.round(blocked/robot*10000)/100 : 0;
+  return {'总工单量':total, '机器人工单量':robot, '机器人拦截工单量':blocked, '机器人拦截率':rate};
+}
+
+function getPrevPeriod() {
+  if (!currentFilters.dateFrom || !currentFilters.dateTo) return {from:null,to:null};
+  var from = new Date(currentFilters.dateFrom+'T00:00:00');
+  var to = new Date(currentFilters.dateTo+'T00:00:00');
+  var diff = to - from;
+  var prevTo = new Date(from.getTime()-86400000);
+  var prevFrom = new Date(prevTo.getTime()-diff);
+  return {from:prevTo.toISOString().slice(0,10), to:prevFrom.toISOString().slice(0,10)};
+}
+
+// ==================== METRIC CARDS ====================
+function getCurrentMetrics() {
+  if (hasEmptyRobotTop3ProductIntersection()) return {'总工单量':0,'机器人工单量':0,'机器人拦截工单量':0,'机器人拦截率':0};
+  var pls = effectiveRobotProductLines(currentFilters.productLines);
+  var bds = currentFilters.bizDomains;
+  var srcs = currentFilters.sourceDomains;
+  var ex4 = currentFilters.exclude4Domains;
+
+  if (pls.length === 0 && bds.length === 0 && srcs.length === 0 && !currentFilters.top3DutyOnly) {
+    var overall = ex4 ? DATA.overallEx : DATA.overall;
+    return sumByDateRange(overall.daily);
+  }
+
+  // If source filter is active, compute from raw rows
+  if (srcs.length > 0) {
+    var rows = applyRobotTop3Rows(RAW_ROWS.slice());
+    if (pls.length > 0) rows = rows.filter(function(r){ return pls.indexOf(norm(r['产品线'])) >= 0; });
+    if (bds.length > 0) rows = rows.filter(function(r){ return bds.indexOf(norm(r['业务域'])) >= 0; });
+    rows = rows.filter(function(r){ return srcs.indexOf(norm(r['工单来源'])) >= 0; });
+    return calcMetrics(rows, ex4);
+  }
+
+  // If only biz domain filter active, use business data (which has 业务域 field)
+  if (bds.length > 0 && pls.length === 0) {
+    var records = DATA.business.daily;
+    records = records.filter(function(r){ return bds.indexOf(r['业务域']) >= 0; });
+    return sumByDateRange(records);
+  }
+
+  // If product line filter active, use product data (which has 产品线 field)
+  var records = ex4 ? DATA.productEx.daily : DATA.product.daily;
+  if (pls.length > 0) {
+    records = records.filter(function(r){ return pls.indexOf(r['产品线']) >= 0; });
+  }
+  // If both pl and biz selected, also filter by biz (business data was augmented with 产品线)
+  if (bds.length > 0 && pls.length > 0) {
+    records = DATA.business.daily;
+    records = records.filter(function(r){ return bds.indexOf(r['业务域']) >= 0 && pls.indexOf(r['产品线']) >= 0; });
+    return sumByDateRange(records);
+  }
+  return sumByDateRange(records);
+}
+
+function updateMetricCards() {
+  var prev = getPrevPeriod();
+  var currMetrics = getCurrentMetrics();
+
+  var prevMetrics = {'总工单量':0,'机器人工单量':0,'机器人拦截工单量':0,'机器人拦截率':0};
+  if (prev.from && prev.to) {
+    var of = currentFilters.dateFrom, ot = currentFilters.dateTo;
+    currentFilters.dateFrom = prev.to; currentFilters.dateTo = prev.from;
+    prevMetrics = getCurrentMetrics();
+    currentFilters.dateFrom = of; currentFilters.dateTo = ot;
+  }
+
+  var cards = [
+    {label:'总工单量',icon:'fa-file-lines',key:'总工单量',fmt:function(v){return v.toLocaleString();}},
+    {label:'机器人工单量',icon:'fa-robot',key:'机器人工单量',fmt:function(v){return v.toLocaleString();}},
+    {label:'机器人拦截工单量',icon:'fa-shield-halved',key:'机器人拦截工单量',fmt:function(v){return v.toLocaleString();}},
+    {label:'机器人拦截率',icon:'fa-percent',key:'机器人拦截率',fmt:function(v){return v.toFixed(1)+'%';}}
+  ];
+
+  var html = '';
+  cards.forEach(function(c){
+    var curr = currMetrics[c.key], prevVal = prevMetrics[c.key];
+    var diff = curr - prevVal;
+    var cls = 'neutral', sign = '';
+    if (diff > 0) { cls='up'; sign='+'; } else if (diff < 0) { cls='down'; }
+    var diffStr = c.key==='机器人拦截率' ? (sign+diff.toFixed(1)+'pp') : (sign+Math.round(diff).toLocaleString());
+    html += '<div class="metric-card"><div class="label"><i class="fas '+c.icon+'"></i>'+c.label+'</div>'+
+      '<div class="value">'+c.fmt(curr)+'</div>'+
+      '<div class="change '+cls+'"><i class="fas fa-'+(diff>0?'arrow-up':diff<0?'arrow-down':'minus')+'"></i>环比 '+diffStr+'</div></div>';
+  });
+  document.getElementById('metricCards').innerHTML = html;
+}
+
+// ==================== APPLY FILTERS ====================
+function onExcludeToggle() {
+  currentFilters.exclude4Domains = document.getElementById('exclude4Toggle').checked;
+  applyFilters();
+}
+
+function onTop3DutyToggle() {
+  currentFilters.top3DutyOnly = document.getElementById('top3DutyToggle').checked;
+  applyFilters();
+}
+
+function applyFilters() {
+  currentFilters.dateFrom = document.getElementById('dateFrom').value || null;
+  currentFilters.dateTo = document.getElementById('dateTo').value || null;
+  // productLines and bizDomains already set by multi-select
+
+  if (!DATA) return;
+  // Sync chart multi-selects with global filter
+  syncChartMultiSelects();
+  updateMetricCards();
+  updateOverallChart();
+  updateProductChart();
+  updateBizChart();
+  updateCrossTable();
+}
+
+function syncChartMultiSelects() {
+  // Sync global product line filter to chart multi-selects
+  var pls = currentFilters.productLines;
+  ['msOverallPl', 'msProductPl'].forEach(function(msId){
+    var el = document.getElementById(msId);
+    if (!el) return;
+    var checks = el.querySelectorAll('input[type=checkbox]');
+    for (var i = 0; i < checks.length; i++) {
+      checks[i].checked = pls.indexOf(checks[i].value) >= 0;
+    }
+    updateMsTrigger(msId);
+  });
+  // Sync biz domain filter to biz trend chart
+  var bds = currentFilters.bizDomains;
+  var bizEl = document.getElementById('msBizTrend');
+  if (bizEl) {
+    var checks = bizEl.querySelectorAll('input[type=checkbox]');
+    for (var i = 0; i < checks.length; i++) {
+      checks[i].checked = bds.indexOf(checks[i].value) >= 0;
+    }
+    updateMsTrigger('msBizTrend');
+  }
+}
+
+function resetFilters() {
+  document.getElementById('dateFrom').value = DATA.dateRange.min;
+  document.getElementById('dateTo').value = DATA.dateRange.max;
+  currentFilters.productLines = [];
+  currentFilters.bizDomains = [];
+  currentFilters.sourceDomains = [];
+  currentFilters.exclude4Domains = false;
+  currentFilters.top3DutyOnly = false;
+  document.getElementById('exclude4Toggle').checked = false;
+  var top3El = document.getElementById('top3DutyToggle');
+  if (top3El) top3El.checked = false;
+  _bizTrendSelected = [];
+  _overallPlSelected = [];
+  _productPlSelected = [];
+  updateMsTrigger('msGlobalPl');
+  updateMsTrigger('msGlobalBiz');
+  updateMsTrigger('msGlobalSource');
+  updateMsTrigger('msOverallPl');
+  updateMsTrigger('msProductPl');
+  updateMsTrigger('msBizTrend');
+  document.querySelectorAll('#msGlobalPl .ms-options input[type=checkbox], #msGlobalBiz .ms-options input[type=checkbox], #msGlobalSource .ms-options input[type=checkbox], #msOverallPl .ms-options input[type=checkbox], #msProductPl .ms-options input[type=checkbox], #msBizTrend .ms-options input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+  applyFilters();
+}
+
+// ==================== TREND CHARTS ====================
+function getTrendData(type, period, filterVal) {
+  if (hasEmptyRobotTop3ProductIntersection()) return {labels:[], robotCounts:[], rates:[]};
+  var periodKey = period==='day'?'daily':period==='week'?'weekly':'monthly';
+  var dateKey = period==='day'?'日期':period==='week'?'周':'月';
+  var ex4 = currentFilters.exclude4Domains;
+  var srcs = currentFilters.sourceDomains;
+  var records;
+  var productKey = ex4 ? 'productEx' : 'product';
+  var overallKey = ex4 ? 'overallEx' : 'overall';
+  filterVal = effectiveRobotProductLines(filterVal || []);
+
+  // If source filter is active, aggregate from raw rows
+  if (srcs.length > 0) {
+    var rows = applyRobotTop3Rows(RAW_ROWS.slice());
+    rows = rows.filter(function(r){ return srcs.indexOf(norm(r['工单来源'])) >= 0; });
+    if (type === 'overall' && filterVal && filterVal.length > 0) {
+      rows = rows.filter(function(r){ return filterVal.indexOf(norm(r['产品线'])) >= 0; });
+    }
+    if (type === 'product' && filterVal && filterVal.length > 0) {
+      rows = rows.filter(function(r){ return filterVal.indexOf(norm(r['产品线'])) >= 0; });
+    }
+    if (type === 'biz' && filterVal && filterVal.length > 0) {
+      rows = rows.filter(function(r){ return filterVal.indexOf(norm(r['业务域'])) >= 0; });
+    }
+    var groups = groupBy(rows, [dateKey]);
+    var map = {};
+    groups.forEach(function(g){
+      var m = calcMetrics(g, ex4);
+      var key = g[0][dateKey];
+      if (!map[key]) map[key] = {'机器人工单量':0,'机器人拦截工单量':0};
+      map[key]['机器人工单量'] += m['机器人工单量'];
+      map[key]['机器人拦截工单量'] += m['机器人拦截工单量'];
+    });
+    records = Object.keys(map).map(function(k){ var v=map[k]; v[dateKey]=k; return v; });
+    var filtered = records.filter(function(r){ return inDateRange(r[dateKey], period); });
+    filtered.sort(function(a,b){ return (a[dateKey]||'').localeCompare(b[dateKey]||''); });
+    return {
+      labels: filtered.map(function(r){ return r[dateKey]; }),
+      robotCounts: filtered.map(function(r){ return r['机器人工单量']||0; }),
+      rates: filtered.map(function(r){
+        var rc=r['机器人工单量']||0, bc=r['机器人拦截工单量']||0;
+        return rc>0 ? Math.round(bc/rc*10000)/100 : 0;
+      })
+    };
+  }
+
+  if (type === 'overall') {
+    if (filterVal && filterVal.length > 0) {
+      records = DATA[productKey][periodKey].filter(function(r){ return filterVal.indexOf(r['产品线']) >= 0; });
+      var overallMap = {};
+      records.forEach(function(r){
+        var key = r[dateKey];
+        if (!overallMap[key]) overallMap[key] = {'机器人工单量':0,'机器人拦截工单量':0};
+        overallMap[key]['机器人工单量'] += r['机器人工单量'];
+        overallMap[key]['机器人拦截工单量'] += r['机器人拦截工单量'];
+      });
+      records = Object.keys(overallMap).map(function(k){ var v=overallMap[k]; v[dateKey]=k; return v; });
+    } else {
+      records = DATA[overallKey][periodKey];
+    }
+  } else if (type === 'product') {
+    records = DATA[productKey][periodKey];
+    if (filterVal && filterVal.length > 0) {
+      records = records.filter(function(r){ return filterVal.indexOf(r['产品线']) >= 0; });
+    } else {
+      var map = {};
+      records.forEach(function(r){
+        var key = r[dateKey];
+        if (!map[key]) map[key] = {'机器人工单量':0,'机器人拦截工单量':0};
+        map[key]['机器人工单量'] += r['机器人工单量'];
+        map[key]['机器人拦截工单量'] += r['机器人拦截工单量'];
+      });
+      records = Object.keys(map).map(function(k){ var v=map[k]; v[dateKey]=k; return v; });
+    }
+  } else {
+    // Business domain trend - use business data (exclude4 doesn't apply to business dimension)
+    records = DATA.business[periodKey];
+    if (currentFilters.top3DutyOnly) {
+      records = records.filter(function(r){ return isTop3DutyLine(r['产品线']); });
+    }
+    if (filterVal && filterVal.length > 0) {
+      records = records.filter(function(r){ return filterVal.indexOf(r['业务域']) >= 0; });
+    } else {
+      var map = {};
+      records.forEach(function(r){
+        var key = r[dateKey];
+        if (!map[key]) map[key] = {'机器人工单量':0,'机器人拦截工单量':0};
+        map[key]['机器人工单量'] += r['机器人工单量'];
+        map[key]['机器人拦截工单量'] += r['机器人拦截工单量'];
+      });
+      records = Object.keys(map).map(function(k){ var v=map[k]; v[dateKey]=k; return v; });
+    }
+  }
+
+  var filtered = records.filter(function(r){ return inDateRange(r[dateKey], period); });
+  filtered.sort(function(a,b){ return (a[dateKey]||'').localeCompare(b[dateKey]||''); });
+
+  return {
+    labels: filtered.map(function(r){ return r[dateKey]; }),
+    robotCounts: filtered.map(function(r){ return r['机器人工单量']||0; }),
+    rates: filtered.map(function(r){
+      var rc=r['机器人工单量']||0, bc=r['机器人拦截工单量']||0;
+      return rc>0 ? Math.round(bc/rc*10000)/100 : 0;
+    })
+  };
+}
+
+function createDualAxisChart(ctx, data) {
+  return new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels:data.labels,
+      datasets:[
+        {label:'机器人工单量',data:data.robotCounts,backgroundColor:'rgba(79,110,247,0.7)',borderColor:'#4f6ef7',borderWidth:1,borderRadius:6,yAxisID:'y',order:1},
+        {label:'机器人拦截率',data:data.rates,type:'line',borderColor:'#7c5cfc',backgroundColor:'rgba(124,92,252,0.1)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#7c5cfc',pointBorderColor:'#fff',pointBorderWidth:2,tension:0.3,fill:true,yAxisID:'y1',order:0}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{position:'top',labels:{usePointStyle:true,padding:20,font:{size:12}}},
+        tooltip:{callbacks:{label:function(ctx){return ctx.datasetIndex===0?'机器人工单量: '+ctx.raw.toLocaleString():'机器人拦截率: '+ctx.raw.toFixed(1)+'%';}}}
+      },
+      scales:{
+        y:{type:'linear',position:'left',title:{display:true,text:'机器人工单量',color:'#4f6ef7',font:{weight:'bold'}},grid:{color:'rgba(0,0,0,0.06)'},ticks:{callback:function(v){return v>=1000?(v/1000).toFixed(1)+'k':v;}}},
+        y1:{type:'linear',position:'right',title:{display:true,text:'拦截率 (%)',color:'#7c5cfc',font:{weight:'bold'}},grid:{drawOnChartArea:false},ticks:{callback:function(v){return v.toFixed(0)+'%';}},min:0,max:100},
+        x:{grid:{display:false},ticks:{maxRotation:45,font:{size:11}}}
+      }
+    }
+  });
+}
+
+function updateOverallChart() {
+  if (!DATA) return;
+  var filterVal = effectiveRobotProductLines(currentFilters.productLines);
+  var d = getTrendData('overall', periods.overall, filterVal);
+  var ctx = document.getElementById('overallChart').getContext('2d');
+  if (charts.overall) charts.overall.destroy();
+  charts.overall = createDualAxisChart(ctx, d);
+}
+function updateProductChart() {
+  if (!DATA) return;
+  var filterVal = effectiveRobotProductLines(currentFilters.productLines);
+  var d = getTrendData('product', periods.product, filterVal);
+  var ctx = document.getElementById('productChart').getContext('2d');
+  if (charts.product) charts.product.destroy();
+  charts.product = createDualAxisChart(ctx, d);
+}
+function updateBizChart() {
+  if (!DATA) return;
+  var d = getTrendData('biz', periods.biz, currentFilters.bizDomains);
+  var ctx = document.getElementById('bizChart').getContext('2d');
+  if (charts.biz) charts.biz.destroy();
+  charts.biz = createDualAxisChart(ctx, d);
+}
+function setPeriod(type, period, btn) {
+  periods[type] = period;
+  var parent = btn.parentElement;
+  parent.querySelectorAll('.btn-sm').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  if (type==='overall') updateOverallChart();
+  else if (type==='product') updateProductChart();
+  else updateBizChart();
+}
+
+// ==================== CROSS TABLE (HIERARCHICAL) ====================
+function updateCrossTable() {
+  if (!DATA) return;
+  var ex4 = currentFilters.exclude4Domains;
+  var srcs = currentFilters.sourceDomains;
+  var pls = effectiveRobotProductLines(currentFilters.productLines);
+  var bds = currentFilters.bizDomains;
+
+  // If source filter active, re-aggregate from raw rows
+  var tree;
+  if (srcs.length > 0) {
+    var rows = applyRobotTop3Rows(RAW_ROWS.slice());
+    rows = rows.filter(function(r){ return srcs.indexOf(norm(r['工单来源'])) >= 0 && norm(r['业务域']) !== ''; });
+    var groups = groupBy(rows, ['产品线','业务域']);
+    var crossData = [];
+    groups.forEach(function(g){
+      var m = calcMetrics(g, ex4);
+      m['产品线'] = g[0]['产品线']; m['业务域'] = g[0]['业务域'];
+      crossData.push(m);
+    });
+    tree = buildCrossTree(crossData);
+  } else {
+    tree = ex4 ? DATA.crossTreeEx : DATA.crossTree;
+  }
+
+  // Filter tree
+  var productLines = Object.keys(tree).sort();
+  if (hasEmptyRobotTop3ProductIntersection()) productLines = [];
+  if (pls.length > 0) productLines = productLines.filter(function(p){ return pls.indexOf(p) >= 0; });
+
+  var html = '<table><thead><tr><th>产品线 / 业务域</th><th>总工单量</th><th>机器人工单量</th><th>机器人拦截工单量</th><th>机器人拦截率</th></tr></thead><tbody>';
+
+  var grandTotal = 0, grandRobot = 0, grandBlocked = 0;
+
+  productLines.forEach(function(pline){
+    var t = tree[pline].total;
+    var domains = Object.keys(tree[pline].domains).sort();
+    if (bds.length > 0) domains = domains.filter(function(d){ return bds.indexOf(d) >= 0; });
+
+    // Recalc parent totals based on filtered domains
+    var ptTotal = 0, ptRobot = 0, ptBlocked = 0;
+    domains.forEach(function(d){
+      var dm = tree[pline].domains[d];
+      ptTotal += dm['总工单量']; ptRobot += dm['机器人工单量']; ptBlocked += dm['机器人拦截工单量'];
+    });
+    var ptRate = ptRobot > 0 ? Math.round(ptBlocked/ptRobot*10000)/100 : 0;
+    var ptRateCls = ptRate >= 50 ? 'rate-high' : ptRate >= 30 ? 'rate-mid' : 'rate-low';
+
+    grandTotal += ptTotal; grandRobot += ptRobot; grandBlocked += ptBlocked;
+
+    var rowId = 'cross-pl-'+pline.replace(/[^a-zA-Z0-9一-龥]/g,'_');
+    html += '<tr class="row-parent" onclick="toggleCrossRow(\''+rowId+'\')" id="'+rowId+'">'+
+      '<td><span class="expand-icon">▶</span> '+pline+'</td>'+
+      '<td>'+ptTotal.toLocaleString()+'</td>'+
+      '<td>'+ptRobot.toLocaleString()+'</td>'+
+      '<td>'+ptBlocked.toLocaleString()+'</td>'+
+      '<td><span class="'+ptRateCls+'">'+ptRate.toFixed(1)+'%</span></td></tr>';
+
+    domains.forEach(function(d){
+      var dm = tree[pline].domains[d];
+      var rate = dm['机器人拦截率'];
+      var rateCls = rate >= 50 ? 'rate-high' : rate >= 30 ? 'rate-mid' : 'rate-low';
+      html += '<tr class="row-child" data-parent="'+rowId+'">'+
+        '<td>'+d+'</td>'+
+        '<td>'+dm['总工单量'].toLocaleString()+'</td>'+
+        '<td>'+dm['机器人工单量'].toLocaleString()+'</td>'+
+        '<td>'+dm['机器人拦截工单量'].toLocaleString()+'</td>'+
+        '<td><span class="'+rateCls+'">'+rate.toFixed(1)+'%</span></td></tr>';
+    });
+  });
+
+  // Grand total row
+  var gRate = grandRobot > 0 ? Math.round(grandBlocked/grandRobot*10000)/100 : 0;
+  var gRateCls = gRate >= 50 ? 'rate-high' : gRate >= 30 ? 'rate-mid' : 'rate-low';
+  html += '<tr style="font-weight:700;background:#f0ebff">'+
+    '<td>合计</td>'+
+    '<td>'+grandTotal.toLocaleString()+'</td>'+
+    '<td>'+grandRobot.toLocaleString()+'</td>'+
+    '<td>'+grandBlocked.toLocaleString()+'</td>'+
+    '<td><span class="'+gRateCls+'">'+gRate.toFixed(1)+'%</span></td></tr>';
+
+  html += '</tbody></table>';
+  document.getElementById('crossTableWrap').innerHTML = html;
+}
+
+function toggleCrossRow(rowId) {
+  var parentRow = document.getElementById(rowId);
+  var isExpanded = parentRow.classList.contains('expanded');
+  if (isExpanded) {
+    parentRow.classList.remove('expanded');
+    parentRow.querySelector('.expand-icon').textContent = '▶';
+  } else {
+    parentRow.classList.add('expanded');
+    parentRow.querySelector('.expand-icon').textContent = '▼';
+  }
+  var children = document.querySelectorAll('tr.row-child[data-parent="'+rowId+'"]');
+  children.forEach(function(c){
+    if (isExpanded) c.classList.remove('show');
+    else c.classList.add('show');
+  });
+}
+
+// ==================== NAVIGATION ====================
+function scrollToSection(id) {
+  var el = document.getElementById(id);
+  if (el) el.scrollIntoView({behavior:'smooth',block:'start'});
+  document.querySelectorAll('.sidebar-nav a').forEach(function(a){ a.classList.remove('active'); });
+  if (event && event.target) {
+    var link = event.target.closest('a');
+    if (link) link.classList.add('active');
+  }
+}
+
+// ==================== INIT ====================
+console.log('机器人工单看板已就绪，请上传 Excel 数据文件');
+
+
+// ==================== V1.1 新增 ====================
+var QA_ROWS = [];
+var currentPage = 'dashboard';
+var _kPlSelected = [];
+var _kBizSelected = [];
+var _kPeriod = 'day';
+var _configPlSelected = [];
+var kCharts = { hotTrend: null, unblockedReason: null };
+
+function showPage(pageName) {
+  var containers = document.querySelectorAll('.page-container');
+  for (var i = 0; i < containers.length; i++) {
+    containers[i].classList.remove('active');
+  }
+  var target = document.getElementById('page-' + pageName);
+  if (target) {
+    target.classList.add('active');
+    target.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  currentPage = pageName;
+  var links = document.querySelectorAll('.sidebar-nav a');
+  for (var i = 0; i < links.length; i++) {
+    links[i].classList.remove('active');
+    var dp = links[i].getAttribute('data-page') || '';
+    if (dp === pageName) {
+      links[i].classList.add('active');
+    }
+  }
+  if (pageName === 'knowledge') initKnowledgePage();
+  if (pageName === 'admin') initAdminPage();
+  if (pageName === 'manual') initManualPage();
+}
+
+function scrollToSection(id) {
+  showPage('dashboard');
+  setTimeout(function(){
+    var el = document.getElementById(id);
+    if (el) el.scrollIntoView({behavior:'smooth',block:'start'});
+  }, 150);
+}
+
+// ==================== 知识运营分析 ====================
+function initKnowledgePage() {
+  var kPlEl = document.getElementById('msKPl');
+  if (kPlEl) {
+    var opts = kPlEl.querySelector('.ms-options');
+    if (opts && opts.children.length === 0) {
+      buildMsOptions('msKPl');
+      buildMsOptions('msKBiz');
+      updateMsTrigger('msKPl');
+      updateMsTrigger('msKBiz');
+    }
+  }
+  if (RAW_ROWS && RAW_ROWS.length > 0) initKnowledgeDates();
+  applyKnowledgeFilters();
+}
+
+function getKnowledgeFilteredRows() {
+  var rows = (RAW_ROWS && RAW_ROWS.length > 0) ? RAW_ROWS.slice() : [];
+  var qaRows = (QA_ROWS && QA_ROWS.length > 0) ? QA_ROWS.slice() : [];
+  // Filter by product line
+  if (_kPlSelected.length > 0) {
+    rows = rows.filter(function(r){ return _kPlSelected.indexOf(norm(r['产品线'])) >= 0; });
+    qaRows = qaRows.filter(function(r){ return _kPlSelected.indexOf(norm(r['产品线'])) >= 0; });
+  }
+  // Filter by biz domain
+  if (_kBizSelected.length > 0) {
+    rows = rows.filter(function(r){ return _kBizSelected.indexOf(norm(r['业务域'])) >= 0; });
+    qaRows = qaRows.filter(function(r){ return _kBizSelected.indexOf(norm(r['业务域'])) >= 0; });
+  }
+  // Filter by date
+  var df = document.getElementById('kDateFrom').value;
+  var dt = document.getElementById('kDateTo').value;
+  if (df || dt) {
+    rows = rows.filter(function(r){
+      var d = parseDate(r['工单创建时间']);
+      if (df && d < df) return false;
+      if (dt && d > dt) return false;
+      return true;
+    });
+    qaRows = qaRows.filter(function(r){
+      // QA rows don't have date, use ticket ID to match
+      return true;
+    });
+  }
+  return { tickets: rows, qa: qaRows };
+}
+
+function applyKnowledgeFilters() {
+  _kPlSelected = getMsState('msKPl').selected;
+  _kBizSelected = getMsState('msKBiz').selected;
+  updateKnowledgeAnalysis();
+}
+
+function updateKnowledgeAnalysis() {
+  var data = getKnowledgeFilteredRows();
+  var tickets = data.tickets || [];
+  var qa = data.qa || [];
+
+  // 1. 高频问题排行
+  updateHotQuestions(qa, tickets);
+
+  // 2. 高频问题趋势
+  updateHotTrendChart(qa, tickets);
+
+  // 3. 未拦截问题排行
+  updateUnblockedQuestions(tickets);
+
+  // 4. 未拦截原因分析
+  updateUnblockedReasonChart(tickets);
+
+  // 5. 人工解决方案 TOP
+  updateManualSolutions(tickets);
+
+  // 6. 工单详情
+  updateTicketDetail(tickets);
+}
+
+// 1. 高频问题排行
+// 当前选中的高频问题（用于趋势联动）
+var _kSelectedQuestion = '';
+
+// ========== 语义聚类引擎 ==========
+
+// 文本归一化
+function normalizeText(text) {
+  var t = (text || '').replace(/[\s]+/g, ' ').trim();
+  t = t.replace(/[，。！？、；：""''（）【】《》\[\]{}…—\-\+\/=@#\$%\^&\*]/g, ' ');
+  t = t.replace(/\s+/g, ' ').trim().toLowerCase();
+  t = t.replace(/请问|你好|您好|帮我|能不能|可不可以|怎么|如何|怎样|有没有|有没有人|有人知道/g, '');
+  t = t.replace(/img_v[\d_]+[a-z]?/gi, '');
+  t = t.replace(/\s+/g, ' ').trim();
+  return t.substring(0, 120);
+}
+
+function extractKeywords(text) {
+  var cleaned = text.replace(/[a-zA-Z0-9]+/g, ' ').replace(/\s+/g, '');
+  var keywords = [];
+  for (var i = 0; i < cleaned.length - 1; i++) keywords.push(cleaned.substring(i, i + 2));
+  for (var i = 0; i < cleaned.length - 2; i++) keywords.push(cleaned.substring(i, i + 3));
+  var engWords = text.match(/[a-zA-Z][a-zA-Z0-9._-]{1,30}/g);
+  if (engWords) keywords = keywords.concat(engWords.map(function(w){ return w.toLowerCase(); }));
+  return keywords;
+}
+
+function jaccardSimilarity(a, b) {
+  if (a.length === 0 && b.length === 0) return 1;
+  var setA = {}, setB = {}, intersection = 0;
+  a.forEach(function(k){ setA[k] = (setA[k]||0)+1; });
+  b.forEach(function(k){ setB[k] = (setB[k]||0)+1; });
+  var unionKeys = {};
+  Object.keys(setA).forEach(function(k){ unionKeys[k] = true; });
+  Object.keys(setB).forEach(function(k){ unionKeys[k] = true; });
+  var union = 0;
+  Object.keys(unionKeys).forEach(function(k){
+    union += Math.max(setA[k]||0, setB[k]||0);
+    intersection += Math.min(setA[k]||0, setB[k]||0);
+  });
+  return union === 0 ? 0 : intersection / union;
+}
+
+function classifyQuestionType(text) {
+  var rules = [
+    { type: '系统异常类', keys: ['异常','报错','失败','超时','崩溃','宕机','不响应','不可用','挂掉','重启','死锁','堵塞','卡住','起不来','启动失败','连接失败','断开','中断','错误','error','fail','crash','down','挂了','故障','503','502','500','404','bug','缺陷'] },
+    { type: '权限/配置类', keys: ['权限','配置','申请','开通','授权','白名单','设置','参数','修改','变更','证书','密钥','密码','token','ak','sk','secret','access','role','账号','登录','注册','鉴权','认证'] },
+    { type: '数据问题类', keys: ['数据','同步','迁移','导出','导入','查询','统计','报表','丢失','不一致','重复','缺失','延迟','数据量','增量','全量','etl','清洗','计算','指标','对数','对账','核对','准确'] },
+    { type: '使用理解类', keys: ['怎么','如何','是什么','说明','文档','教程','指南','功能','用途','区别','含义','什么意思','不知道','不了解','在哪里','找不到','怎么用','用法','示例','例子','demo','介绍','解释'] },
+    { type: '接口/调用失败类', keys: ['接口','api','调用','请求','响应','返回','错误码','参数错误','curl','http','rpc','grpc','rest','post','get','timeout','connection','refused','abort','网络','链路','调用链'] },
+    { type: '业务流程类', keys: ['流程','审批','审核','提交','订单','交易','发货','退款','退货','售后','步骤','环节','状态','流转','工单','申请单','审批单','发布','上线','部署','灰度','回滚','变更单'] }
+  ];
+  var lower = text.toLowerCase();
+  for (var i = 0; i < rules.length; i++) {
+    for (var j = 0; j < rules[i].keys.length; j++) {
+      if (lower.indexOf(rules[i].keys[j]) >= 0) return rules[i].type;
+    }
+  }
+  return 'AI无法识别类';
+}
+
+function semanticCluster(qaRows, tickets) {
+  // Step 1: 跨轮次合并
+  var ticketQA = {};
+  qaRows.forEach(function(r){
+    var tid = norm(r['机器人工单id']);
+    if (!tid) return;
+    if (!ticketQA[tid]) {
+      ticketQA[tid] = { productLine: norm(r['产品线']), bizDomain: norm(r['业务域']), questions: [], rawQuestions: [] };
+    }
+    var q = norm(r['问题']);
+    if (q) { ticketQA[tid].questions.push(normalizeText(q)); ticketQA[tid].rawQuestions.push(q.substring(0, 80)); }
+  });
+
+  // Step 2: 按业务域分组
+  var bizGroups = {};
+  Object.keys(ticketQA).forEach(function(tid){
+    var t = ticketQA[tid];
+    var biz = t.bizDomain || '其他';
+    if (!bizGroups[biz]) bizGroups[biz] = [];
+    bizGroups[biz].push({ tid: tid, productLine: t.productLine, bizDomain: biz, combinedText: t.questions.join(' '), rawQuestions: t.rawQuestions, keywords: extractKeywords(t.questions.join(' ')) });
+  });
+
+  // Step 3: 业务域内语义聚类
+  var allClusters = [];
+  Object.keys(bizGroups).forEach(function(biz){
+    var items = bizGroups[biz];
+    var clusters = [];
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i], bestCluster = null, bestScore = 0;
+      for (var j = 0; j < clusters.length; j++) {
+        var score = jaccardSimilarity(item.keywords, clusters[j].centroid.keywords);
+        if (score > bestScore) { bestScore = score; bestCluster = clusters[j]; }
+      }
+      if (bestScore > 0.35 && bestCluster) {
+        bestCluster.items.push(item);
+        item.keywords.forEach(function(k){ bestCluster.centroid.keywords.push(k); });
+      } else {
+        clusters.push({ centroid: { keywords: item.keywords.slice() }, items: [item], bizDomain: biz });
+      }
+    }
+    allClusters = allClusters.concat(clusters);
+  });
+
+  // Step 4: 统计指标
+  allClusters.forEach(function(cluster){
+    cluster.count = cluster.items.length;
+    var plCount = {};
+    cluster.items.forEach(function(it){ plCount[it.productLine] = (plCount[it.productLine]||0)+1; });
+    var maxPl = '', maxPlCount = 0;
+    Object.keys(plCount).forEach(function(pl){ if (plCount[pl] > maxPlCount) { maxPlCount = plCount[pl]; maxPl = pl; } });
+    cluster.productLine = maxPl;
+
+    var rawCount = {};
+    cluster.items.forEach(function(it){ it.rawQuestions.forEach(function(rq){ rawCount[rq] = (rawCount[rq]||0)+1; }); });
+    var maxRaw = '', maxRawCount = 0;
+    Object.keys(rawCount).forEach(function(rq){ if (rawCount[rq] > maxRawCount) { maxRawCount = rawCount[rq]; maxRaw = rq; } });
+    cluster.normalizedQuestion = maxRaw;
+    cluster.questionType = classifyQuestionType(cluster.items.map(function(it){ return it.combinedText; }).join(' '));
+
+    var tids = cluster.items.map(function(it){ return it.tid; });
+    var totalT = tids.length, blockedT = 0;
+    tids.forEach(function(tid){
+      var ticket = tickets.find(function(t){ return norm(t['机器人工单ID']) === tid; });
+      if (ticket && norm(ticket['是否拦截成功']) === '是') blockedT++;
+    });
+    cluster.blockRate = totalT > 0 ? Math.round(blockedT / totalT * 10000) / 100 : 0;
+    cluster.blockedCount = blockedT;
+    cluster.totalTickets = totalT;
+  });
+
+  allClusters.sort(function(a, b){ return b.count - a.count; });
+  return allClusters;
+}
+
+// ========== 高频问题排行（语义聚类版） ==========
+var _kSelectedQuestion = '';
+
+function updateHotQuestions(qa, tickets) {
+  var container = document.getElementById('kHotQuestions');
+  if (qa.length === 0) {
+    container.innerHTML = '<p style="color:#999;text-align:center;padding:40px">请先上传机器人问答明细数据</p>';
+    return;
+  }
+  var clusters = semanticCluster(qa, tickets);
+  var top20 = clusters.slice(0, 20);
+  var html = '<table><thead><tr><th>排名</th><th>产品线</th><th>业务域</th><th>标准化问题</th><th>问题类型</th><th>出现次数</th><th>拦截率</th></tr></thead><tbody>';
+  top20.forEach(function(c, i){
+    var rateCls = c.blockRate >= 50 ? 'rate-high' : c.blockRate >= 30 ? 'rate-mid' : 'rate-low';
+    var isSelected = _kSelectedQuestion === c.normalizedQuestion;
+    var countStyle = isSelected ? 'font-weight:700;color:#667eea;cursor:pointer;text-decoration:underline' : 'color:#667eea;cursor:pointer;text-decoration:underline';
+    var rowStyle = isSelected ? 'background:#ede4ff' : '';
+    var safeQ = c.normalizedQuestion.replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    html += '<tr style="' + rowStyle + '">' +
+      '<td>' + (i+1) + '</td>' +
+      '<td>' + c.productLine + '</td>' +
+      '<td>' + c.bizDomain + '</td>' +
+      '<td style="text-align:left;max-width:250px;overflow:hidden;text-overflow:ellipsis">' + c.normalizedQuestion + '</td>' +
+      '<td><span style="font-size:12px;padding:2px 8px;border-radius:4px;background:#f0edff;color:#667eea">' + c.questionType + '</span></td>' +
+      '<td style="' + countStyle + '" data-question="' + safeQ + '" onclick="selectQuestionByClick(this)">' + c.count + '</td>' +
+      '<td><span class="' + rateCls + '">' + c.blockRate.toFixed(1) + '%</span></td>' +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  if (_kSelectedQuestion) {
+    var safeQ2 = _kSelectedQuestion.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    html += '<div style="padding:8px;text-align:center;font-size:12px;color:#666">当前筛选: <b>' + safeQ2.substring(0, 60) + '</b> <a href="javascript:void(0)" style="color:#667eea" onclick="clearQuestionFilter();return false;">清除</a></div>';
+  }
+  container.innerHTML = html;
+}
+
+function selectQuestionByClick(el) {
+  var q = el.getAttribute('data-question');
+  if (q) { var txt = document.createElement('textarea'); txt.innerHTML = q; _kSelectedQuestion = txt.value; applyKnowledgeFilters(); }
+}
+
+function selectQuestion(q) { _kSelectedQuestion = q; applyKnowledgeFilters(); }
+function clearQuestionFilter() { _kSelectedQuestion = ''; applyKnowledgeFilters(); }
+// 2. 高频问题趋势
+var _kPeriod = 'day';
+function setKPeriod(period, btn) {
+  _kPeriod = period;
+  var parent = btn.parentElement;
+  parent.querySelectorAll('.btn-sm').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  updateKnowledgeAnalysis();
+}
+
+function updateHotTrendChart(qa, tickets) {
+  var ctx = document.getElementById('kHotTrendChart').getContext('2d');
+  if (kCharts.hotTrend) kCharts.hotTrend.destroy();
+  if (qa.length === 0) return;
+
+  var clusters = semanticCluster(qa, tickets);
+  var targetCluster = null;
+  if (_kSelectedQuestion) {
+    targetCluster = clusters.find(function(c){ return c.normalizedQuestion === _kSelectedQuestion; });
+  }
+
+  var dateKey = _kPeriod === 'day' ? '日期' : _kPeriod === 'week' ? '周' : '月';
+  var ticketDates = {};
+  tickets.forEach(function(t){
+    var tid = norm(t['机器人工单ID']);
+    if (tid) ticketDates[tid] = norm(t[dateKey]) || parseDate(t['工单创建时间']);
+  });
+
+  var filteredQA = qa;
+  if (targetCluster) {
+    var clusterTids = {};
+    targetCluster.items.forEach(function(it){ clusterTids[it.tid] = true; });
+    filteredQA = qa.filter(function(r){ return clusterTids[norm(r['机器人工单id'])]; });
+  }
+
+  var dateCounts = {};
+  filteredQA.forEach(function(r){
+    var tid = norm(r['机器人工单id']);
+    var d = ticketDates[tid] || '';
+    if (!d) return;
+    dateCounts[d] = (dateCounts[d]||0) + 1;
+  });
+
+  var keys = Object.keys(dateCounts).sort();
+  var labels = keys;
+  var counts = keys.map(function(k){ return dateCounts[k]; });
+  var chartLabel = targetCluster ? '\u300c' + targetCluster.normalizedQuestion.substring(0, 30) + '\u300d\u51fa\u73b0\u6b21\u6570' : '\u95ee\u9898\u603b\u6570';
+
+  kCharts.hotTrend = new Chart(ctx, {
+    type: 'line',
+    data: { labels: labels, datasets: [{ label: chartLabel, data: counts, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.1)', borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#667eea', tension: 0.3, fill: true }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { usePointStyle: true } }, title: targetCluster ? { display: true, text: '\u7b5b\u9009: ' + targetCluster.normalizedQuestion.substring(0, 60), font: { size: 12 }, color: '#4f6ef7' } : {} },
+      scales: { y: { title: { display: true, text: '\u51fa\u73b0\u6b21\u6570' }, grid: { color: 'rgba(0,0,0,0.06)' }, beginAtZero: true }, x: { grid: { display: false }, ticks: { maxRotation: 45, font: { size: 11 } } } }
+    }
+  });
+}
+
+// 3. 未拦截问题排行
+function updateUnblockedQuestions(tickets) {
+  var container = document.getElementById('kUnblockedQuestions');
+  var unblocked = tickets.filter(function(r){ return norm(r['是否拦截成功']) === '否'; });
+  if (unblocked.length === 0) {
+    container.innerHTML = '<p style="color:#999;text-align:center;padding:40px">无未拦截数据</p>';
+    return;
+  }
+  var descMap = {};
+  unblocked.forEach(function(r){
+    var desc = norm(r['工单描述']).substring(0, 80) || norm(r['工单名称']).substring(0, 80);
+    if (!desc) return;
+    if (!descMap[desc]) descMap[desc] = { count: 0, bizDomain: norm(r['业务域']), reason: norm(r['转人工场景']) };
+    descMap[desc].count++;
+  });
+  var sorted = Object.keys(descMap).sort(function(a,b){ return descMap[b].count - descMap[a].count; }).slice(0, 20);
+  var html = '<table><thead><tr><th>排名</th><th>问题描述</th><th>业务域</th><th>次数</th><th>转人工场景</th></tr></thead><tbody>';
+  sorted.forEach(function(q, i){
+    var info = descMap[q];
+    html += '<tr><td>' + (i+1) + '</td><td style="text-align:left;max-width:250px;overflow:hidden;text-overflow:ellipsis">' + q + '</td><td>' + info.bizDomain + '</td><td>' + info.count + '</td><td>' + info.reason + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// 4. 未拦截原因分析
+function updateUnblockedReasonChart(tickets) {
+  var ctx = document.getElementById('kUnblockedReasonChart').getContext('2d');
+  if (kCharts.unblockedReason) kCharts.unblockedReason.destroy();
+  var unblocked = tickets.filter(function(r){ return norm(r['是否拦截成功']) === '否'; });
+  if (unblocked.length === 0) return;
+  var reasonMap = {};
+  unblocked.forEach(function(r){
+    var reason = norm(r['转人工场景']) || '未知';
+    if (!reasonMap[reason]) reasonMap[reason] = 0;
+    reasonMap[reason]++;
+  });
+  var keys = Object.keys(reasonMap);
+  var values = keys.map(function(k){ return reasonMap[k]; });
+  var colors = ['#4f6ef7','#7c5cfc','#ea4335','#f9ab00','#1e8e3e','#4285f4','#ec4899','#8b5cf6'];
+  kCharts.unblockedReason = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: keys, datasets: [{ data: values, backgroundColor: colors.slice(0, keys.length), borderWidth: 2, borderColor: '#fff' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 11 }, padding: 12, usePointStyle: true } } } }
+  });
+}
+
+// 5. 人工解决方案 TOP
+function updateManualSolutions(tickets) {
+  var container = document.getElementById('kManualSolutions');
+  var withSolution = tickets.filter(function(r){ return norm(r['人工工单-解决方案']).length > 5; });
+  if (withSolution.length === 0) {
+    container.innerHTML = '<p style="color:#999;text-align:center;padding:40px">暂无人工解决方案数据</p>';
+    return;
+  }
+  var bizSolutions = {};
+  withSolution.forEach(function(r){
+    var biz = norm(r['业务域']) || '其他';
+    if (!bizSolutions[biz]) bizSolutions[biz] = [];
+    bizSolutions[biz].push(norm(r['人工工单-解决方案']).substring(0, 100));
+  });
+  var html = '<table><thead><tr><th>业务域</th><th>解决方案数</th><th>示例方案</th></tr></thead><tbody>';
+  var sorted = Object.keys(bizSolutions).sort(function(a,b){ return bizSolutions[b].length - bizSolutions[a].length; });
+  sorted.forEach(function(biz){
+    var solutions = bizSolutions[biz];
+    html += '<tr><td>' + biz + '</td><td>' + solutions.length + '</td><td style="text-align:left;max-width:300px;overflow:hidden;text-overflow:ellipsis">' + solutions[0] + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// 6. 工单详情
+function updateTicketDetail(tickets) {
+  var container = document.getElementById('kTicketDetail');
+  if (tickets.length === 0) {
+    container.innerHTML = '<p style="color:#999;text-align:center;padding:40px">无工单数据</p>';
+    return;
+  }
+  var sample = tickets.slice(0, 50);
+  var html = '<table><thead><tr><th>工单ID</th><th>产品线</th><th>业务域</th><th>工单名称</th><th>拦截状态</th><th>转人工场景</th></tr></thead><tbody>';
+  sample.forEach(function(r){
+    var blocked = norm(r['是否拦截成功']) === '是' ? '<span style="color:#10b981">已拦截</span>' : '<span style="color:#ef4444">未拦截</span>';
+    html += '<tr><td>' + norm(r['机器人工单ID']) + '</td><td>' + norm(r['产品线']) + '</td><td>' + norm(r['业务域']) + '</td><td style="text-align:left;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + norm(r['工单名称']) + '</td><td>' + blocked + '</td><td>' + norm(r['转人工场景']) + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  if (tickets.length > 50) html += '<p style="color:#666;text-align:center;padding:8px">仅显示前50条，共' + tickets.length + '条</p>';
+  container.innerHTML = html;
+}
+
+// ==================== 运营后台 ====================
+function initAdminPage() {
+  loadPrompts();
+  if (DATA) loadPageConfig();
+}
+
+function switchAdminTab(tab, evt) {
+  document.querySelectorAll('.admin-panel').forEach(function(p){ p.classList.add('hidden'); });
+  document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.getElementById('admin-' + tab).classList.remove('hidden');
+  if (evt && evt.target) evt.target.classList.add('active');
+}
+
+function handleAdminTicketUpload(input) {
+  var file = input.files[0];
+  if (!file) return;
+  document.getElementById('adminTicketInfo').textContent = '正在加载: ' + file.name;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var wb = XLSX.read(e.target.result, {type:'array'});
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      var json = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      RAW_ROWS = json;
+      processData();
+      document.getElementById('adminTicketInfo').textContent = '已加载: ' + file.name + ' (' + RAW_ROWS.length + ' 条)';
+      showToast('成功加载机器人工单 ' + RAW_ROWS.length + ' 条', 'success');
+    } catch(err) {
+      showToast('文件解析失败: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function handleAdminQAUpload(input) {
+  var file = input.files[0];
+  if (!file) return;
+  document.getElementById('adminQAInfo').textContent = '正在加载: ' + file.name;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var wb = XLSX.read(e.target.result, {type:'array'});
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      var json = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      QA_ROWS = json;
+      document.getElementById('adminQAInfo').textContent = '已加载: ' + file.name + ' (' + QA_ROWS.length + ' 条)';
+      showToast('成功加载问答明细 ' + QA_ROWS.length + ' 条', 'success');
+    } catch(err) {
+      showToast('文件解析失败: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function loadPrompts() {
+  var prompts = ['promptHotQuestions', 'promptUnblocked', 'promptKnowledge'];
+  prompts.forEach(function(id){
+    var saved = localStorage.getItem('v11_' + id);
+    if (saved) document.getElementById(id).value = saved;
+  });
+}
+
+function savePrompt(id) {
+  var value = document.getElementById(id).value;
+  localStorage.setItem('v11_' + id, value);
+  showToast('Prompt 已保存', 'success');
+}
+
+function loadPageConfig() {
+  var config = {};
+  try { config = JSON.parse(localStorage.getItem('v11_pageConfig') || '{}'); } catch(e) {}
+  var cfEl = document.getElementById('configDefaultDateFrom');
+  var ctEl = document.getElementById('configDefaultDateTo');
+  if (cfEl && config.dateFrom) cfEl.value = config.dateFrom;
+  if (ctEl && config.dateTo) ctEl.value = config.dateTo;
+  if (config.pl) { _configPlSelected = config.pl; }
+  var msEl = document.getElementById('msConfigPl');
+  if (msEl) {
+    var opts = msEl.querySelector('.ms-options');
+    if (opts && opts.children.length === 0) buildMsOptions('msConfigPl');
+    updateMsTrigger('msConfigPl');
+    var checks = msEl.querySelectorAll('input[type=checkbox]');
+    for (var i = 0; i < checks.length; i++) {
+      checks[i].checked = _configPlSelected.indexOf(checks[i].value) >= 0;
+    }
+  }
+}
+
+function savePageConfig() {
+  var config = {
+    dateFrom: document.getElementById('configDefaultDateFrom').value,
+    dateTo: document.getElementById('configDefaultDateTo').value,
+    pl: _configPlSelected
+  };
+  localStorage.setItem('v11_pageConfig', JSON.stringify(config));
+  showToast('页面配置已保存', 'success');
+}
+
+var _origGetMsState = getMsState;
+getMsState = function(msId) {
+  if (msId === 'msKPl') return { selected: _kPlSelected, onChange: function(v){ _kPlSelected = v; } };
+  if (msId === 'msKBiz') return { selected: _kBizSelected, onChange: function(v){ _kBizSelected = v; } };
+  if (msId === 'msConfigPl') return { selected: _configPlSelected, onChange: function(v){ _configPlSelected = v; } };
+  return _origGetMsState(msId);
+};
+
+var _origOnMsCheckboxChange = onMsCheckboxChange;
+onMsCheckboxChange = function(msId) {
+  _origOnMsCheckboxChange(msId);
+  if (msId === 'msKPl' || msId === 'msKBiz') applyKnowledgeFilters();
+  if (msId === 'msConfigPl') { }
+};
+
+// ==================== 人工工单总览 ====================
+var MANUAL_ROWS = [];
+var MANUAL_DATA = null;
+var manualFilters = { dateFrom: null, dateTo: null, productLines: [], bizDomains: [], keyBizDomains: [], top3DutyOnly: false };
+var manualPeriods = { overall: 'day', product: 'day', biz: 'day' };
+var manualCharts = { overall: null, product: null, biz: null };
+var _manualInited = false;
+var TS_NAMES = ['孟婉沁','白大福(Tiki)','桔子(Freya)','九米(vanna)','刘佳敏','孙雨朦','王章俊','闻鹿(Deer)','嘻嘻(Siri)','歆歆(Lyla)','椰枝(Coral)'];
+
+function numVal(v) {
+  var n = parseFloat((v||'').toString().replace(/,/g,''));
+  return isNaN(n) ? null : n;
+}
+function manualIncludesTs(v) {
+  var s = norm(v);
+  return TS_NAMES.some(function(n){ return s.indexOf(n) >= 0; });
+}
+function isManualTs(row) {
+  return manualIncludesTs(row['最终业务域客服']);
+}
+function isManualIntercept(row) { return norm(row['TS是否自主处理']) === '是'; }
+function isAgentAssist(row) {
+  var v = norm(row['业务域机器人辅助答疑情况']) || norm(row['是否机器人可以解决']);
+  return v === '辅助答疑' || v === '完全解决';
+}
+function getManualPeriodKey(row, period) {
+  if (period === 'month') return norm(row['月份']) || norm(row['月']) || (row['日期']||'').slice(0,7);
+  if (period === 'week') return norm(row['周数']) || norm(row['周度']) || norm(row['周']) || (row['日期']||'');
+  return row['日期'] || '';
+}
+function filterManualRows(useDate) {
+  var rows = MANUAL_ROWS.slice();
+  if (manualFilters.top3DutyOnly) rows = rows.filter(function(r){ return isTop3DutyLine(r['产品线']); });
+  if (manualFilters.productLines.length) rows = rows.filter(function(r){ return manualFilters.productLines.indexOf(norm(r['产品线'])) >= 0; });
+  if (manualFilters.bizDomains.length) rows = rows.filter(function(r){ return manualFilters.bizDomains.indexOf(norm(r['业务域'])) >= 0; });
+  if (manualFilters.keyBizDomains.length) rows = rows.filter(function(r){ return manualFilters.keyBizDomains.indexOf(norm(r['重点业务域'])) >= 0; });
+  if (useDate !== false) {
+    if (manualFilters.dateFrom) rows = rows.filter(function(r){ return (r['日期']||'') >= manualFilters.dateFrom; });
+    if (manualFilters.dateTo) rows = rows.filter(function(r){ return (r['日期']||'') <= manualFilters.dateTo; });
+  }
+  return rows;
+}
+function calcManualMetrics(rows) {
+  var manual = rows.length;
+  var tsRows = rows.filter(isManualTs);
+  var tsCount = tsRows.length;
+  var intercepted = tsRows.filter(isManualIntercept).length;
+  var rate = tsCount > 0 ? Math.round(intercepted / tsCount * 10000) / 100 : 0;
+  var validForTime = rows.filter(function(r){
+    var first = numVal(r['首响耗时(min)']);
+    return norm(r['是否为长时工单']) === '否' && first !== null && first >= 0 && first < 100 && norm(r['是否TS']) === '是';
+  });
+  var firstList = validForTime.map(function(r){ return numVal(r['首响耗时(min)']); }).filter(function(v){ return v !== null; });
+  var handleList = validForTime.map(function(r){ return numVal(r['处理时长(min)']); }).filter(function(v){ return v !== null; });
+  var avgFirst = firstList.length ? firstList.reduce(function(a,b){ return a+b; },0) / firstList.length : 0;
+  var avgHandle = handleList.length ? handleList.reduce(function(a,b){ return a+b; },0) / handleList.length / 60 : 0;
+  var agentAssist = rows.filter(isAgentAssist).length;
+  var agentRate = tsCount > 0 ? Math.round(agentAssist / tsCount * 10000) / 100 : 0;
+  return {'人工工单量':manual,'TS承接工单量':tsCount,'TS自主拦截工单量':intercepted,'TS拦截率':rate,'TS平均首响时长':avgFirst,'TS平均处理时长':avgHandle,'Agent辅助工单量':agentAssist,'Agent辅助工单比例':agentRate};
+}
+function getRobotBlockedCountByManualFilters() {
+  if (!RAW_ROWS || !RAW_ROWS.length) return 0;
+  return RAW_ROWS.filter(function(r){
+    var date = parseDate(r['工单创建时间']);
+    if (manualFilters.dateFrom && date < manualFilters.dateFrom) return false;
+    if (manualFilters.dateTo && date > manualFilters.dateTo) return false;
+    if (manualFilters.top3DutyOnly && !isTop3DutyLine(r['产品线'])) return false;
+    if (manualFilters.productLines.length && manualFilters.productLines.indexOf(norm(r['产品线'])) < 0) return false;
+    if (manualFilters.bizDomains.length && manualFilters.bizDomains.indexOf(norm(r['业务域'])) < 0) return false;
+    if (norm(r['是否拦截成功']) !== '是') return false;
+    return true;
+  }).length;
+}
+function initManualData() {
+  if (typeof FEISHU_MANUAL === 'undefined') return false;
+  MANUAL_ROWS = FEISHU_MANUAL;
+  MANUAL_ROWS.forEach(function(r){
+    r['日期'] = parseDate(r['工单创建时间']);
+    r['产品线'] = norm(r['产品线']);
+    r['业务域'] = norm(r['业务域']);
+    r['重点业务域'] = norm(r['重点业务域']) || norm(r['是否重点业务域']);
+  });
+  var plSet={}, bizSet={}, keySet={}, dates=[];
+  MANUAL_ROWS.forEach(function(r){
+    if (r['产品线']) plSet[r['产品线']]=true;
+    if (r['业务域']) bizSet[r['业务域']]=true;
+    if (r['重点业务域']) keySet[r['重点业务域']]=true;
+    if (r['日期']) dates.push(r['日期']);
+  });
+  dates.sort();
+  MANUAL_DATA = { productLines:Object.keys(plSet).sort(), bizDomains:Object.keys(bizSet).sort(), keyBizDomains:Object.keys(keySet).sort(), dateRange:{min:dates[0]||'', max:dates[dates.length-1]||''} };
+  return true;
+}
+function initManualPage() {
+  if (!_manualInited) {
+    if (!initManualData()) { showToast('人工工单数据未加载，请确认 data_manual.js', 'error'); return; }
+    ['msManualPl','msManualBiz','msManualKeyBiz'].forEach(buildMsOptions);
+    document.getElementById('manualDateFrom').value = MANUAL_DATA.dateRange.min;
+    document.getElementById('manualDateTo').value = MANUAL_DATA.dateRange.max;
+    var detail = document.getElementById('manualDataDetail');
+    if (detail) detail.textContent = '人工工单明细 ' + MANUAL_ROWS.length.toLocaleString() + ' 条 | 数据范围 ' + MANUAL_DATA.dateRange.min + ' ~ ' + MANUAL_DATA.dateRange.max;
+    _manualInited = true;
+  }
+  applyManualFilters();
+}
+function getManualPrevPeriod() {
+  if (!manualFilters.dateFrom || !manualFilters.dateTo) return {from:null,to:null};
+  var from = new Date(manualFilters.dateFrom+'T00:00:00'), to = new Date(manualFilters.dateTo+'T00:00:00');
+  var diff = to - from;
+  var prevTo = new Date(from.getTime()-86400000), prevFrom = new Date(prevTo.getTime()-diff);
+  return {from:prevFrom.toISOString().slice(0,10), to:prevTo.toISOString().slice(0,10)};
+}
+function updateManualMetricCards() {
+  var rows = filterManualRows(true);
+  var m = calcManualMetrics(rows);
+  m['总工单量'] = m['人工工单量'] + getRobotBlockedCountByManualFilters();
+  var prev = getManualPrevPeriod();
+  var oldFrom = manualFilters.dateFrom, oldTo = manualFilters.dateTo;
+  var pm = {'总工单量':0,'人工工单量':0,'TS承接工单量':0,'TS拦截率':0,'TS平均首响时长':0,'TS平均处理时长':0,'Agent辅助工单比例':0};
+  if (prev.from && prev.to) {
+    manualFilters.dateFrom = prev.from; manualFilters.dateTo = prev.to;
+    pm = calcManualMetrics(filterManualRows(true));
+    pm['总工单量'] = pm['人工工单量'] + getRobotBlockedCountByManualFilters();
+    manualFilters.dateFrom = oldFrom; manualFilters.dateTo = oldTo;
+  }
+  var cards = [
+    {label:'总工单量',icon:'fa-file-lines',key:'总工单量',fmt:function(v){return Math.round(v).toLocaleString();}},
+    {label:'人工工单量',icon:'fa-headset',key:'人工工单量',fmt:function(v){return v.toLocaleString();}},
+    {label:'TS承接工单量',icon:'fa-user-check',key:'TS承接工单量',fmt:function(v){return v.toLocaleString();}},
+    {label:'TS拦截率',icon:'fa-shield-halved',key:'TS拦截率',fmt:function(v){return v.toFixed(1)+'%';}},
+    {label:'TS平均首响时长',icon:'fa-bolt',key:'TS平均首响时长',fmt:function(v){return v.toFixed(1)+'min';}},
+    {label:'TS平均处理时长',icon:'fa-clock',key:'TS平均处理时长',fmt:function(v){return v.toFixed(2)+'h';}},
+    {label:'Agent辅助工单比例',icon:'fa-wand-magic-sparkles',key:'Agent辅助工单比例',fmt:function(v){return v.toFixed(1)+'%';}}
+  ];
+  var html = '';
+  cards.forEach(function(c){
+    var curr = m[c.key] || 0, prevVal = pm[c.key] || 0, diff = curr - prevVal;
+    var cls = diff > 0 ? 'up' : diff < 0 ? 'down' : 'neutral';
+    var unitDiff = (c.key.indexOf('率')>=0 || c.key.indexOf('比例')>=0) ? (diff>0?'+':'')+diff.toFixed(1)+'pp' : c.key.indexOf('时长')>=0 ? (diff>0?'+':'')+diff.toFixed(2) : (diff>0?'+':'')+Math.round(diff).toLocaleString();
+    html += '<div class="metric-card"><div class="label"><i class="fas '+c.icon+'"></i>'+c.label+'</div><div class="value">'+c.fmt(curr)+'</div><div class="change '+cls+'"><i class="fas fa-'+(diff>0?'arrow-up':diff<0?'arrow-down':'minus')+'"></i>环比 '+unitDiff+'</div></div>';
+  });
+  document.getElementById('manualMetricCards').innerHTML = html;
+}
+function manualTrendData(dim, period) {
+  var rows = filterManualRows(true);
+  var map = {};
+  rows.forEach(function(r){
+    var time = getManualPeriodKey(r, period); if (!time) return;
+    var dimVal = dim === 'product' ? (r['产品线']||'未填写') : dim === 'biz' ? (r['业务域']||'未填写') : '总体';
+    var key = time + '|||'+dimVal;
+    if (!map[key]) map[key] = {time:time, dim:dimVal, rows:[]};
+    map[key].rows.push(r);
+  });
+  var rows2 = Object.keys(map).map(function(k){ var item=map[k], m=calcManualMetrics(item.rows); return {time:item.time, dim:item.dim, count:m['TS承接工单量'], rate:m['TS拦截率']}; });
+  if (dim === 'overall') rows2 = rows2.sort(function(a,b){ return a.time.localeCompare(b.time); });
+  else {
+    var top = {};
+    rows2.forEach(function(r){ top[r.dim]=(top[r.dim]||0)+r.count; });
+    var topDims = Object.keys(top).sort(function(a,b){ return top[b]-top[a]; }).slice(0,8);
+    rows2 = rows2.filter(function(r){ return topDims.indexOf(r.dim)>=0; }).sort(function(a,b){ return (a.time+a.dim).localeCompare(b.time+b.dim); });
+  }
+  return {labels:rows2.map(function(r){ return dim==='overall'?r.time:r.time+' · '+r.dim; }), counts:rows2.map(function(r){ return r.count; }), rates:rows2.map(function(r){ return r.rate; })};
+}
+function createManualDualAxisChart(ctx, data) {
+  return new Chart(ctx,{type:'bar',data:{labels:data.labels,datasets:[{label:'TS承接工单量',data:data.counts,backgroundColor:'rgba(79,110,247,0.7)',borderColor:'#4f6ef7',borderWidth:1,borderRadius:6,yAxisID:'y',order:1},{label:'TS拦截率',data:data.rates,type:'line',borderColor:'#7c5cfc',backgroundColor:'rgba(124,92,252,0.1)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#7c5cfc',pointBorderColor:'#fff',pointBorderWidth:2,tension:0.3,fill:true,yAxisID:'y1',order:0}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{usePointStyle:true,padding:20,font:{size:12}}},tooltip:{callbacks:{label:function(ctx){return ctx.datasetIndex===0?'TS承接工单量: '+ctx.raw.toLocaleString():'TS拦截率: '+ctx.raw.toFixed(1)+'%';}}}},scales:{y:{type:'linear',position:'left',title:{display:true,text:'TS承接工单量',color:'#4f6ef7',font:{weight:'bold'}},grid:{color:'rgba(0,0,0,0.06)'}},y1:{type:'linear',position:'right',title:{display:true,text:'TS拦截率 (%)',color:'#7c5cfc',font:{weight:'bold'}},grid:{drawOnChartArea:false},ticks:{callback:function(v){return v.toFixed(0)+'%';}},min:0,max:100},x:{grid:{display:false},ticks:{maxRotation:45,font:{size:10}}}}}});
+}
+function updateManualCharts() {
+  [['overall','manualOverallChart'],['product','manualProductChart'],['biz','manualBizChart']].forEach(function(item){
+    var d = manualTrendData(item[0], manualPeriods[item[0]]);
+    var ctx = document.getElementById(item[1]).getContext('2d');
+    if (manualCharts[item[0]]) manualCharts[item[0]].destroy();
+    manualCharts[item[0]] = createManualDualAxisChart(ctx, d);
+  });
+}
+function setManualPeriod(type, period, btn) {
+  manualPeriods[type] = period;
+  btn.parentElement.querySelectorAll('.btn-sm').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  updateManualCharts();
+}
+function updateManualCrossTable() {
+  var rows = filterManualRows(true), tree = {};
+  rows.forEach(function(r){
+    var pl = r['产品线'] || '未填写', biz = r['业务域'] || '未填写';
+    if (!tree[pl]) tree[pl] = {}; if (!tree[pl][biz]) tree[pl][biz] = [];
+    tree[pl][biz].push(r);
+  });
+  var html = '<table><thead><tr><th>产品线 / 业务域</th><th>人工工单量</th><th>TS承接工单量</th><th>TS自主拦截工单量</th><th>TS拦截率</th></tr></thead><tbody>';
+  var gManual=0,gTs=0,gInter=0;
+  Object.keys(tree).sort().forEach(function(pl){
+    var domains = Object.keys(tree[pl]).sort(), pManual=0,pTs=0,pInter=0;
+    domains.forEach(function(biz){ var m=calcManualMetrics(tree[pl][biz]); pManual+=m['人工工单量']; pTs+=m['TS承接工单量']; pInter+=m['TS自主拦截工单量']; });
+    gManual+=pManual; gTs+=pTs; gInter+=pInter;
+    var pRate = pTs ? Math.round(pInter/pTs*10000)/100 : 0, rowId='manual-pl-'+pl.replace(/[^a-zA-Z0-9一-龥]/g,'_');
+    html += '<tr class="row-parent" onclick="toggleCrossRow(\''+rowId+'\')" id="'+rowId+'"><td><span class="expand-icon">▶</span> '+pl+'</td><td>'+pManual.toLocaleString()+'</td><td>'+pTs.toLocaleString()+'</td><td>'+pInter.toLocaleString()+'</td><td><span class="'+(pRate>=50?'rate-high':pRate>=30?'rate-mid':'rate-low')+'">'+pRate.toFixed(1)+'%</span></td></tr>';
+    domains.forEach(function(biz){ var m=calcManualMetrics(tree[pl][biz]); html += '<tr class="row-child" data-parent="'+rowId+'"><td>'+biz+'</td><td>'+m['人工工单量'].toLocaleString()+'</td><td>'+m['TS承接工单量'].toLocaleString()+'</td><td>'+m['TS自主拦截工单量'].toLocaleString()+'</td><td><span class="'+(m['TS拦截率']>=50?'rate-high':m['TS拦截率']>=30?'rate-mid':'rate-low')+'">'+m['TS拦截率'].toFixed(1)+'%</span></td></tr>'; });
+  });
+  var gRate = gTs ? Math.round(gInter/gTs*10000)/100 : 0;
+  html += '<tr style="font-weight:700;background:#f0ebff"><td>合计</td><td>'+gManual.toLocaleString()+'</td><td>'+gTs.toLocaleString()+'</td><td>'+gInter.toLocaleString()+'</td><td><span class="'+(gRate>=50?'rate-high':gRate>=30?'rate-mid':'rate-low')+'">'+gRate.toFixed(1)+'%</span></td></tr></tbody></table>';
+  document.getElementById('manualCrossTableWrap').innerHTML = html;
+}
+function applyManualFilters() {
+  if (!MANUAL_DATA) return;
+  manualFilters.dateFrom = document.getElementById('manualDateFrom').value || null;
+  manualFilters.dateTo = document.getElementById('manualDateTo').value || null;
+  var top3El = document.getElementById('manualTop3DutyToggle');
+  manualFilters.top3DutyOnly = top3El ? top3El.checked : false;
+  updateManualMetricCards(); updateManualCharts(); updateManualCrossTable();
+}
+function resetManualFilters() {
+  manualFilters.productLines = []; manualFilters.bizDomains = []; manualFilters.keyBizDomains = []; manualFilters.top3DutyOnly = false;
+  document.getElementById('manualDateFrom').value = MANUAL_DATA.dateRange.min;
+  document.getElementById('manualDateTo').value = MANUAL_DATA.dateRange.max;
+  var top3El = document.getElementById('manualTop3DutyToggle');
+  if (top3El) top3El.checked = false;
+  ['msManualPl','msManualBiz','msManualKeyBiz'].forEach(function(id){ var el=document.getElementById(id); if (el) el.querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked=false; }); updateMsTrigger(id); });
+  applyManualFilters();
+}
+
+function onManualTop3DutyToggle() {
+  manualFilters.top3DutyOnly = document.getElementById('manualTop3DutyToggle').checked;
+  applyManualFilters();
+}
+
+function initKnowledgeDates() {
+  if (RAW_ROWS.length > 0) {
+    var dates = RAW_ROWS.map(function(r){ return parseDate(r['工单创建时间']); }).filter(Boolean).sort();
+    if (dates.length > 0) {
+      document.getElementById('kDateFrom').value = dates[0];
+      document.getElementById('kDateTo').value = dates[dates.length - 1];
+    }
+  }
+}
+
+var _origProcessData = processData;
+processData = function() {
+  _origProcessData();
+  initKnowledgeDates();
+};
+
+// ==================== FEISHU DATA ====================
+var FEISHU_DATA_URL = "";  // Set via environment or config
+function loadFeishuData() {
+  if (typeof FEISHU_TICKETS === 'undefined' || typeof FEISHU_QA === 'undefined') {
+    setTimeout(loadFeishuData, 100);
+    return;
+  }
+  RAW_ROWS = FEISHU_TICKETS;
+  QA_ROWS = FEISHU_QA;
+  processData();
+  document.getElementById('uploadArea').classList.add('hidden');
+  var status = document.getElementById('feishuDataStatus');
+  if (status) { status.style.display = 'flex'; status.style.alignItems = 'center'; }
+  var detail = document.getElementById('feishuDataDetail');
+  if (detail) detail.textContent = '机器人工单明细 ' + RAW_ROWS.length + ' 条 | 问答明细 ' + QA_ROWS.length + ' 条';
+  var sections = document.querySelectorAll('.section');
+  for (var i = 0; i < sections.length; i++) sections[i].classList.remove('hidden');
+  showToast('已加载飞书数据: 工单 ' + RAW_ROWS.length + ' 条, 问答 ' + QA_ROWS.length + ' 条', 'success');
+}
+
+function refreshFeishuData() {
+  showToast('正在从飞书同步最新数据...', 'info');
+  
+  fetch('/sync', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      if (result.ok) {
+        // 重新加载数据文件
+        var ts = result.ts;
+        var s1 = document.createElement('script');
+        s1.src = 'data_tickets.js?t=' + ts;
+        s1.onload = function() {
+          var s2 = document.createElement('script');
+          s2.src = 'data_qa.js?t=' + ts;
+          s2.onload = function() {
+            RAW_ROWS = FEISHU_TICKETS;
+            QA_ROWS = FEISHU_QA;
+            processData();
+            var status = document.getElementById('feishuDataStatus');
+            if (status) { status.style.display = 'flex'; status.style.alignItems = 'center'; }
+            var detail = document.getElementById('feishuDataDetail');
+            if (detail) detail.textContent = '机器人工单明细 ' + RAW_ROWS.length + ' 条 | 问答明细 ' + QA_ROWS.length + ' 条';
+            showToast('已同步: 工单 ' + result.tickets + ' 条, 问答 ' + result.qa + ' 条', 'success');
+          };
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s1);
+      } else {
+        showToast('同步失败: ' + (result.error || '未知错误'), 'error');
+      }
+    })
+    .catch(function(err) {
+      showToast('无法连接服务器，请先运行: python3 serve_dashboard.py', 'error');
+    });
+}
+
+// ==================== INIT ====================
+loadFeishuData();
+console.log('机器人工单看板已就绪 - 飞书数据源');
+</script>
+</body>
+</html>

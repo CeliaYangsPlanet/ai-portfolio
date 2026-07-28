@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>重点业务域双周复盘</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--primary:#4f6ef7;--primary-2:#7c5cfc;--bg:#f0f2f5;--text:#1a1a2e;--muted:#5f6368;--line:#e8eaed;--card:#fff}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);min-height:100vh;color:var(--text)}
+.review-app{min-height:100vh;padding:20px 24px;background:linear-gradient(180deg,#f8faff 0%,#f0f2f5 280px)}
+.review-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}
+.title-wrap h1{font-size:24px;font-weight:800;display:flex;align-items:center;gap:10px;letter-spacing:-.3px}
+.title-wrap h1 i{color:var(--primary)}
+.title-wrap p{margin-top:6px;font-size:13px;color:var(--muted)}
+.status-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:#fff;color:var(--primary);font-size:12px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #eef1ff;white-space:nowrap}
+.status-badge i{font-size:10px}
+.tab-shell{background:var(--card);border:1px solid #f1f3f4;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.tab-bar{display:flex;gap:6px;overflow-x:auto;padding:12px;background:#fff;border-bottom:1px solid var(--line);scrollbar-width:thin}
+.tab-bar::-webkit-scrollbar{height:6px}
+.tab-bar::-webkit-scrollbar-thumb{background:#c9d1f8;border-radius:999px}
+.tab-btn{flex:0 0 auto;border:0;background:#f8f9fa;color:#5f6368;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all .18s;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
+.tab-btn:hover{background:#eef2ff;color:var(--primary);transform:translateY(-1px)}
+.tab-btn.active{background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;box-shadow:0 6px 16px rgba(79,110,247,.22)}
+.tab-btn i{font-size:12px;opacity:.9}
+.tab-content{padding:22px;min-height:calc(100vh - 150px)}
+.tab-pane{display:none;animation:fadeIn .18s ease}
+.tab-pane.active{display:block}
+.empty-card{min-height:420px;border:1px dashed #ccd5ff;border-radius:16px;background:linear-gradient(135deg,#fbfcff 0%,#f5f7ff 100%);display:flex;align-items:center;justify-content:center;text-align:center;padding:36px}
+.empty-inner{max-width:520px}
+.empty-icon{width:64px;height:64px;border-radius:18px;margin:0 auto 16px;background:linear-gradient(135deg,rgba(79,110,247,.12),rgba(124,92,252,.14));display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:26px}
+.empty-card h2{font-size:20px;margin-bottom:8px;color:var(--text)}
+.empty-card p{font-size:13px;line-height:1.7;color:var(--muted)}
+.placeholder-list{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.placeholder-list span{font-size:12px;color:#64748b;background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:768px){.review-app{padding:14px}.review-header{flex-direction:column}.tab-content{padding:14px}.empty-card{min-height:340px}.title-wrap h1{font-size:21px}}
+</style>
+</head>
+<body>
+<div class="review-app">
+  <header class="review-header">
+    <div class="title-wrap">
+      <h1><i class="fas fa-calendar-week"></i>重点业务域双周复盘</h1>
+      <p>按重点业务域组织复盘内容，当前为页面框架，具体模块后续补充。</p>
+    </div>
+    <div class="status-badge"><i class="fas fa-circle"></i>内容待补充</div>
+  </header>
+
+  <section class="tab-shell">
+    <nav class="tab-bar" id="reviewTabBar" aria-label="重点业务域双周复盘导航"></nav>
+    <main class="tab-content" id="reviewTabContent"></main>
+  </section>
+</div>
+
+<script>
+const REVIEW_TABS = [
+  '得物总值班号',
+  'KubeAI',
+  'Kubeone',
+  '中间件',
+  'SRE',
+  '大数据SRE',
+  '特征平台',
+  '研发效能',
+  '监控平台',
+  '算法平台',
+  '数据平台值班号',
+  '飞书平台值班号',
+  '找人小助手'
+];
+
+function safeId(name) {
+  return 'tab-' + name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '-').toLowerCase();
+}
+
+function renderTabs() {
+  const tabBar = document.getElementById('reviewTabBar');
+  const content = document.getElementById('reviewTabContent');
+  tabBar.innerHTML = REVIEW_TABS.map((name, index) => (
+    `<button class="tab-btn ${index === 0 ? 'active' : ''}" type="button" data-target="${safeId(name)}" onclick="switchTab('${safeId(name)}')"><i class="fas fa-layer-group"></i>${name}</button>`
+  )).join('');
+  content.innerHTML = REVIEW_TABS.map((name, index) => (
+    `<section class="tab-pane ${index === 0 ? 'active' : ''}" id="${safeId(name)}">
+      <div class="empty-card">
+        <div class="empty-inner">
+          <div class="empty-icon"><i class="fas fa-clipboard-list"></i></div>
+          <h2>${name}</h2>
+          <p>该业务域的双周复盘内容暂未配置。后续可在这里补充核心指标、趋势图、问题分析、优化动作和待办事项。</p>
+          <div class="placeholder-list"><span>核心指标</span><span>趋势分析</span><span>问题复盘</span><span>优化动作</span></div>
+        </div>
+      </div>
+    </section>`
+  )).join('');
+}
+
+function switchTab(targetId) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.target === targetId));
+  document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.toggle('active', pane.id === targetId));
+}
+
+renderTabs();
+</script>
+</body>
+</html>
